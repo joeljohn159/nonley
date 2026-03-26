@@ -1,0 +1,240 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id                    String              @id @default(uuid()) @db.Uuid
+  email                 String              @unique
+  name                  String?
+  avatarUrl             String?             @map("avatar_url")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+  privacyDefault        String              @default("circles_only") @map("privacy_default")
+  focusMode             Boolean             @default(false) @map("focus_mode")
+  isAdmin               Boolean             @default(false) @map("is_admin")
+  isBot                 Boolean             @default(false) @map("is_bot")
+  stripeCustomerId      String?             @map("stripe_customer_id")
+  stripeSubscriptionId  String?             @map("stripe_subscription_id")
+  plan                  String              @default("free")
+
+  profile               UserProfile?
+  createdCircles        Circle[]            @relation("CircleCreator")
+  circleMemberships     CircleMember[]
+  connections           Connection[]        @relation("UserConnections")
+  connectedBy           Connection[]        @relation("ConnectedByUsers")
+  sitePrivacyRules      SitePrivacyRule[]
+  sentWaves             Wave[]              @relation("SentWaves")
+  receivedWaves         Wave[]              @relation("ReceivedWaves")
+  sentMessages          MicroChatMessage[]
+  integrations          Integration[]
+  embedSites            EmbedSite[]
+  botProfile            BotProfile?
+  accounts              Account[]
+  sessions              Session[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(uuid()) @db.Uuid
+  userId            String  @map("user_id") @db.Uuid
+  type              String
+  provider          String
+  providerAccountId String  @map("provider_account_id")
+  refreshToken      String? @map("refresh_token") @db.Text
+  accessToken       String? @map("access_token") @db.Text
+  expiresAt         Int?    @map("expires_at")
+  tokenType         String? @map("token_type")
+  scope             String?
+  idToken           String? @map("id_token") @db.Text
+  sessionState      String? @map("session_state")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(uuid()) @db.Uuid
+  sessionToken String   @unique @map("session_token")
+  userId       String   @map("user_id") @db.Uuid
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+model UserProfile {
+  userId          String   @id @map("user_id") @db.Uuid
+  bio             String?
+  interests       String[] @default([])
+  locationCity    String?  @map("location_city")
+  locationCountry String?  @map("location_country")
+  webTrailPublic  Boolean  @default(false) @map("web_trail_public")
+  warmthScore     Int      @default(0) @map("warmth_score")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("user_profiles")
+}
+
+model Circle {
+  id          String         @id @default(uuid()) @db.Uuid
+  name        String
+  description String?
+  type        String         @default("manual")
+  isPublic    Boolean        @default(true) @map("is_public")
+  createdBy   String         @map("created_by") @db.Uuid
+  createdAt   DateTime       @default(now()) @map("created_at")
+
+  creator     User           @relation("CircleCreator", fields: [createdBy], references: [id])
+  members     CircleMember[]
+
+  @@map("circles")
+}
+
+model CircleMember {
+  circleId String   @map("circle_id") @db.Uuid
+  userId   String   @map("user_id") @db.Uuid
+  joinedAt DateTime @default(now()) @map("joined_at")
+  role     String   @default("member")
+
+  circle Circle @relation(fields: [circleId], references: [id], onDelete: Cascade)
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([circleId, userId])
+  @@map("circle_members")
+}
+
+model Connection {
+  userId      String   @map("user_id") @db.Uuid
+  connectedTo String   @map("connected_to") @db.Uuid
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user      User @relation("UserConnections", fields: [userId], references: [id], onDelete: Cascade)
+  connected User @relation("ConnectedByUsers", fields: [connectedTo], references: [id], onDelete: Cascade)
+
+  @@id([userId, connectedTo])
+  @@map("connections")
+}
+
+model SitePrivacyRule {
+  userId     String @map("user_id") @db.Uuid
+  urlPattern String @map("url_pattern")
+  visibility String
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, urlPattern])
+  @@map("site_privacy_rules")
+}
+
+model Wave {
+  id         String   @id @default(uuid()) @db.Uuid
+  fromUser   String   @map("from_user") @db.Uuid
+  toUser     String   @map("to_user") @db.Uuid
+  urlContext  String?  @map("url_context")
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  sender   User @relation("SentWaves", fields: [fromUser], references: [id], onDelete: Cascade)
+  receiver User @relation("ReceivedWaves", fields: [toUser], references: [id], onDelete: Cascade)
+
+  @@map("waves")
+}
+
+model MicroChat {
+  id           String              @id @default(uuid()) @db.Uuid
+  roomHash     String              @map("room_hash")
+  type         String              @default("room")
+  participants String[]            @db.Uuid
+  createdAt    DateTime            @default(now()) @map("created_at")
+  expiresAt    DateTime?           @map("expires_at")
+  savedBy      String[]            @default([]) @map("saved_by") @db.Uuid
+
+  messages     MicroChatMessage[]
+
+  @@map("micro_chats")
+}
+
+model MicroChatMessage {
+  id        String   @id @default(uuid()) @db.Uuid
+  chatId    String   @map("chat_id") @db.Uuid
+  senderId  String   @map("sender_id") @db.Uuid
+  content   String
+  createdAt DateTime @default(now()) @map("created_at")
+
+  chat   MicroChat @relation(fields: [chatId], references: [id], onDelete: Cascade)
+  sender User      @relation(fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@map("micro_chat_messages")
+}
+
+model Integration {
+  userId       String   @map("user_id") @db.Uuid
+  provider     String
+  accessToken  String?  @map("access_token")
+  refreshToken String?  @map("refresh_token")
+  connectedAt  DateTime @default(now()) @map("connected_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@id([userId, provider])
+  @@map("integrations")
+}
+
+model EmbedSite {
+  id             String   @id @default(uuid()) @db.Uuid
+  ownerId        String   @map("owner_id") @db.Uuid
+  domain         String   @unique
+  siteKey        String   @unique @map("site_key")
+  plan           String   @default("free")
+  customColors   Json?    @map("custom_colors")
+  brandingHidden Boolean  @default(false) @map("branding_hidden")
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  owner User @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+
+  @@map("embed_sites")
+}
+
+model BotProfile {
+  id           String   @id @default(uuid()) @db.Uuid
+  userId       String   @unique @map("user_id") @db.Uuid
+  behaviorType String   @map("behavior_type")
+  activeUrls   String[] @default([]) @map("active_urls")
+  activeHours  Json     @default("{}") @map("active_hours")
+  autoWave     Boolean  @default(false) @map("auto_wave")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("bot_profiles")
+}
+
+model AdminAuditLog {
+  id           String   @id @default(uuid()) @db.Uuid
+  adminUserId  String   @map("admin_user_id") @db.Uuid
+  actionType   String   @map("action_type")
+  resourceType String   @map("resource_type")
+  resourceId   String?  @map("resource_id")
+  details      Json?
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  @@map("admin_audit_logs")
+}

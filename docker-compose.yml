@@ -1,0 +1,32 @@
+services:
+  # --- Infrastructure (local dev) ---
+  postgres:
+    image: postgres:16-alpine
+    container_name: nonley-postgres
+    ports:
+      - "5433:5432"
+    environment:
+      POSTGRES_USER: nonley
+      POSTGRES_PASSWORD: nonley
+      POSTGRES_DB: nonley
+    volumes:
+      - nonley_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nonley"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: nonley-redis
+    ports:
+      - "6380:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  nonley_postgres_data:

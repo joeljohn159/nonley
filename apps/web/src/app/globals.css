@@ -1,0 +1,19 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --nonley-bg: #0a0a14;
+  --nonley-surface: #1a1a2e;
+  --nonley-border: #2a2a3e;
+  --nonley-accent: #818cf8;
+  --nonley-text: #e0e0e0;
+  --nonley-text-muted: #888;
+  --color-chat-bubble-self: #2d2b55;
+  --color-chat-bubble-other: #1a1a2e;
+}
+
+body {
+  background-color: var(--nonley-bg);
+  color: var(--nonley-text);
+}

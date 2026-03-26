@@ -1,0 +1,38 @@
+{
+  "name": "@nonley/presence-engine",
+  "version": "0.1.0",
+  "private": true,
+  "main": "./dist/index.js",
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc",
+    "start": "node dist/index.js",
+    "typecheck": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "db:generate": "prisma generate",
+    "db:push": "prisma db push",
+    "db:migrate": "prisma migrate dev",
+    "db:studio": "prisma studio",
+    "test": "vitest run"
+  },
+  "dependencies": {
+    "@nonley/config": "workspace:*",
+    "@nonley/crypto": "workspace:*",
+    "@nonley/types": "workspace:*",
+    "@prisma/client": "^5.12.0",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.0",
+    "ioredis": "^5.3.0",
+    "jsonwebtoken": "^9.0.0",
+    "socket.io": "^4.7.0"
+  },
+  "devDependencies": {
+    "@types/cors": "^2.8.17",
+    "@types/jsonwebtoken": "^9.0.0",
+    "@types/node": "^20.12.0",
+    "prisma": "^5.12.0",
+    "tsx": "^4.7.0",
+    "typescript": "^5.4.0",
+    "vitest": "^2.0.0"
+  }
+}

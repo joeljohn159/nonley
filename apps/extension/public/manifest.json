@@ -1,0 +1,36 @@
+{
+  "manifest_version": 3,
+  "name": "Nonley",
+  "description": "You are never alone on the internet. See who else is here.",
+  "version": "0.1.0",
+  "minimum_chrome_version": "102",
+  "permissions": ["activeTab", "storage", "tabs", "alarms"],
+  "host_permissions": ["<all_urls>"],
+  "action": {
+    "default_popup": "popup/index.html",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "48": "icons/icon-48.png",
+      "128": "icons/icon-128.png"
+    }
+  },
+  "background": {
+    "service_worker": "background.js",
+    "type": "module"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["content.js"],
+      "run_at": "document_idle"
+    }
+  ],
+  "content_security_policy": {
+    "extension_pages": "script-src 'self'; object-src 'self'"
+  },
+  "icons": {
+    "16": "icons/icon-16.png",
+    "48": "icons/icon-48.png",
+    "128": "icons/icon-128.png"
+  }
+}
