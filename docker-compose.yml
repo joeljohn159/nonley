@@ -6,9 +6,9 @@ services:
     ports:
       - "5433:5432"
     environment:
-      POSTGRES_USER: nonley
-      POSTGRES_PASSWORD: nonley
-      POSTGRES_DB: nonley
+      POSTGRES_USER: ${POSTGRES_USER:-nonley}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-nonley}
+      POSTGRES_DB: ${POSTGRES_DB:-nonley}
     volumes:
       - nonley_postgres_data:/var/lib/postgresql/data
     healthcheck:
