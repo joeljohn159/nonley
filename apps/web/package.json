@@ -29,7 +29,7 @@
     "tailwind-merge": "^2.2.0",
     "zod": "^3.22.0",
     "zustand": "^4.5.0",
-    "@auth/prisma-adapter": "^1.6.0"
+    "@auth/prisma-adapter": "^2.11.1"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.0",
