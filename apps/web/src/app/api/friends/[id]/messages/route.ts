@@ -1,6 +1,13 @@
-import { NextRequest, NextResponse } from "next/server";
+import { NextRequest } from "next/server";
+import { z } from "zod";
 
-import { requireAuth, successResponse, errorResponse } from "@/lib/api-helpers";
+import {
+  requireAuth,
+  successResponse,
+  errorResponse,
+  parseBody,
+  ApiError,
+} from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 
 export async function GET(
@@ -16,11 +23,11 @@ export async function GET(
     });
 
     if (!friendship) {
-      return errorResponse(new Error("Friendship not found"));
+      throw new ApiError(404, "NOT_FOUND", "Friendship not found");
     }
 
     if (friendship.userAId !== userId && friendship.userBId !== userId) {
-      return errorResponse(new Error("Not your friendship"));
+      throw new ApiError(403, "FORBIDDEN", "Not your friendship");
     }
 
     const url = new URL(req.url);
@@ -57,33 +64,34 @@ export async function GET(
   }
 }
 
+const messageSchema = z.object({
+  content: z
+    .string()
+    .min(1, "Message cannot be empty")
+    .max(2000, "Message must be 2000 characters or less")
+    .transform((s) => s.trim())
+    .refine((s) => s.length > 0, "Message cannot be empty after trimming"),
+});
+
 export async function POST(
-  req: NextRequest,
+  req: Request,
   { params }: { params: { id: string } },
 ) {
   try {
     const session = await requireAuth();
     const userId = session.user.id;
-    const body = await req.json();
-    const content = body.content?.trim();
-
-    if (!content || content.length > 2000) {
-      return NextResponse.json(
-        { error: "Message must be 1-2000 characters" },
-        { status: 400 },
-      );
-    }
+    const { content } = await parseBody(req, messageSchema);
 
     const friendship = await prisma.friendship.findUnique({
       where: { id: params.id },
     });
 
     if (!friendship) {
-      return errorResponse(new Error("Friendship not found"));
+      throw new ApiError(404, "NOT_FOUND", "Friendship not found");
     }
 
     if (friendship.userAId !== userId && friendship.userBId !== userId) {
-      return errorResponse(new Error("Not your friendship"));
+      throw new ApiError(403, "FORBIDDEN", "Not your friendship");
     }
 
     const message = await prisma.friendMessage.create({

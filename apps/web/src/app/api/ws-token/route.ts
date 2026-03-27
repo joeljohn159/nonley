@@ -1,11 +1,25 @@
 import jwt from "jsonwebtoken";
 
-import { requireAuth, successResponse, errorResponse } from "@/lib/api-helpers";
+import {
+  requireAuth,
+  successResponse,
+  errorResponse,
+  ApiError,
+} from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 
 export async function POST() {
   try {
     const session = await requireAuth();
+
+    const secret = process.env.NEXTAUTH_SECRET;
+    if (!secret) {
+      throw new ApiError(
+        500,
+        "CONFIG_ERROR",
+        "Server authentication is misconfigured",
+      );
+    }
 
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
@@ -18,7 +32,9 @@ export async function POST() {
       },
     });
 
-    if (!user) return errorResponse(new Error("User not found"));
+    if (!user) {
+      throw new ApiError(404, "USER_NOT_FOUND", "User account not found");
+    }
 
     const token = jwt.sign(
       {
@@ -28,7 +44,7 @@ export async function POST() {
         avatarUrl: user.avatarUrl,
         plan: user.plan,
       },
-      process.env.NEXTAUTH_SECRET!,
+      secret,
       { expiresIn: "24h" },
     );
 

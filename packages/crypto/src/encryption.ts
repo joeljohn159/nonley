@@ -41,18 +41,34 @@ export function decrypt(encryptedStr: string): string {
   const key = getEncryptionKey();
   const parts = encryptedStr.split(":");
   if (parts.length !== 3) {
-    throw new Error("Invalid encrypted string format");
+    throw new Error(
+      "Invalid encrypted string format: expected iv:authTag:ciphertext",
+    );
   }
 
   const [ivHex, authTagHex, ciphertext] = parts as [string, string, string];
+
+  if (!/^[0-9a-f]+$/i.test(ivHex) || !/^[0-9a-f]+$/i.test(authTagHex)) {
+    throw new Error(
+      "Invalid encrypted string: IV or auth tag is not valid hex",
+    );
+  }
+
   const iv = Buffer.from(ivHex, "hex");
   const authTag = Buffer.from(authTagHex, "hex");
 
-  const decipher = createDecipheriv(ALGORITHM, key, iv);
-  decipher.setAuthTag(authTag);
+  try {
+    const decipher = createDecipheriv(ALGORITHM, key, iv);
+    decipher.setAuthTag(authTag);
 
-  let decrypted = decipher.update(ciphertext, "hex", "utf8");
-  decrypted += decipher.final("utf8");
+    let decrypted = decipher.update(ciphertext, "hex", "utf8");
+    decrypted += decipher.final("utf8");
 
-  return decrypted;
+    return decrypted;
+  } catch (err) {
+    throw new Error(
+      `Decryption failed: ${err instanceof Error ? err.message : "unknown error"}. ` +
+        "This may indicate a wrong encryption key or corrupted data.",
+    );
+  }
 }

@@ -17,8 +17,21 @@ export function generateSiteKey(): string {
 
 /**
  * Constant-time string comparison to prevent timing attacks.
+ * Pads the shorter string to avoid leaking length information.
  */
 export function safeCompare(a: string, b: string): boolean {
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(Buffer.from(a), Buffer.from(b));
+  const bufA = Buffer.from(a);
+  const bufB = Buffer.from(b);
+
+  // Pad shorter buffer so timingSafeEqual doesn't throw,
+  // but still return false for different lengths
+  if (bufA.length !== bufB.length) {
+    // Compare against self of matching length to consume constant time,
+    // then return false
+    const padded = Buffer.alloc(bufA.length);
+    timingSafeEqual(bufA, padded);
+    return false;
+  }
+
+  return timingSafeEqual(bufA, bufB);
 }

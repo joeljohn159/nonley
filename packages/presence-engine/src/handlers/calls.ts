@@ -257,6 +257,12 @@ export function createCallHandler(
     try {
       if (!isNonEmptyString(payload.callId) || !payload.signal) return;
 
+      // Validate signal is a plain object with expected WebRTC shape
+      if (typeof payload.signal !== "object" || Array.isArray(payload.signal))
+        return;
+      const signalStr = JSON.stringify(payload.signal);
+      if (signalStr.length > 10_000) return; // Reject oversized signals
+
       const raw = await redis.get(KEYS.activeCall(payload.callId));
       const parsed = safeParseJson<ActiveCallData>(raw);
       if (!parsed) return;

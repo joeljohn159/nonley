@@ -15,7 +15,7 @@ import type { PrismaClient } from "@prisma/client";
 import type Redis from "ioredis";
 import type { Server, Socket } from "socket.io";
 
-import { KEYS } from "../redis";
+import { KEYS, commands } from "../redis";
 
 type IoServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type IoSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
@@ -46,11 +46,7 @@ export function createPresenceHandler(
       await socket.join(`chat:${roomHash}`);
 
       // Atomic: add user to set + increment count only if new
-      await (
-        redis as never as {
-          roomJoin: (a: string, b: string, c: string) => Promise<number>;
-        }
-      ).roomJoin(KEYS.roomUsers(roomHash), KEYS.roomCount(roomHash), userId);
+      await commands.roomJoin(redis, roomHash, userId);
 
       await Promise.all([
         redis.sadd(KEYS.userRooms(userId), roomHash),
@@ -84,14 +80,18 @@ export function createPresenceHandler(
   }
 
   async function onHeartbeat(payload: HeartbeatPayload): Promise<void> {
-    if (!payload.roomHash || typeof payload.roomHash !== "string") return;
-    const { roomHash } = payload;
-    await redis.set(
-      KEYS.userHeartbeat(userId, roomHash),
-      Date.now().toString(),
-      "EX",
-      Math.floor(PRESENCE.HEARTBEAT_TIMEOUT_MS / 1000),
-    );
+    try {
+      if (!payload.roomHash || typeof payload.roomHash !== "string") return;
+      const { roomHash } = payload;
+      await redis.set(
+        KEYS.userHeartbeat(userId, roomHash),
+        Date.now().toString(),
+        "EX",
+        Math.floor(PRESENCE.HEARTBEAT_TIMEOUT_MS / 1000),
+      );
+    } catch (err) {
+      console.error(`[presence] Heartbeat failed: user=${userId}`, err);
+    }
   }
 
   async function onSendReaction(
@@ -241,21 +241,7 @@ export function createPresenceHandler(
     await socket.leave(roomHash);
 
     // Atomic: remove user from set + decrement count only if was present
-    const newCount = await (
-      redis as never as {
-        roomLeave: (
-          a: string,
-          b: string,
-          c: string,
-          d: string,
-        ) => Promise<number>;
-      }
-    ).roomLeave(
-      KEYS.roomUsers(roomHash),
-      KEYS.roomCount(roomHash),
-      KEYS.roomGroupChats(roomHash),
-      userId,
-    );
+    const newCount = await commands.roomLeave(redis, roomHash, userId);
 
     await Promise.all([
       redis.srem(KEYS.userRooms(userId), roomHash),

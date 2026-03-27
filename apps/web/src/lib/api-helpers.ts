@@ -85,6 +85,11 @@ export async function parseBody<T>(
   req: Request,
   schema: ZodSchema<T>,
 ): Promise<T> {
-  const body = await req.json();
+  let body: unknown;
+  try {
+    body = await req.json();
+  } catch {
+    throw new ApiError(400, "INVALID_JSON", "Request body must be valid JSON");
+  }
   return schema.parse(body);
 }

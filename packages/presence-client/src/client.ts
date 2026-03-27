@@ -253,8 +253,8 @@ export class PresenceClient {
   }
 
   sendReaction(type: Reaction["type"], toUserId: string): void {
-    if (!this.currentRoomHash) return;
-    this.socket?.emit("send_reaction", {
+    if (!this.currentRoomHash || !this.socket?.connected) return;
+    this.socket.emit("send_reaction", {
       type,
       fromUserId: "", // Server fills this from auth
       toUserId,
@@ -263,15 +263,18 @@ export class PresenceClient {
   }
 
   sendWhisper(chatId: string, content: string): void {
-    this.socket?.emit("send_whisper", { chatId, content });
+    if (!this.socket?.connected) return;
+    this.socket.emit("send_whisper", { chatId, content });
   }
 
   sendRoomChat(chatId: string, content: string): void {
-    this.socket?.emit("send_room_chat", { chatId, content });
+    if (!this.socket?.connected) return;
+    this.socket.emit("send_room_chat", { chatId, content });
   }
 
   toggleFocus(enabled: boolean): void {
-    this.socket?.emit("toggle_focus", enabled);
+    if (!this.socket?.connected) return;
+    this.socket.emit("toggle_focus", enabled);
   }
 
   // 1-1 Whisper lifecycle

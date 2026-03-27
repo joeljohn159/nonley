@@ -1,7 +1,10 @@
 import { createStyles } from "./styles";
 
+const DEFAULT_WS_URL = "wss://presence.nonley.com";
+
 interface NonleyEmbedConfig {
   siteId: string;
+  wsUrl?: string;
   position?: "bottom-right" | "bottom-left";
   colors?: {
     primary?: string;
@@ -49,6 +52,7 @@ async function hashPath(path: string): Promise<string> {
 export class NonleyEmbed {
   private config: {
     siteId: string;
+    wsUrl: string;
     position: "bottom-right" | "bottom-left";
     colors: {
       primary: string;
@@ -74,6 +78,7 @@ export class NonleyEmbed {
   constructor(config: NonleyEmbedConfig) {
     this.config = {
       siteId: config.siteId,
+      wsUrl: config.wsUrl ?? DEFAULT_WS_URL,
       position: config.position ?? "bottom-right",
       colors: {
         primary: config.colors?.primary ?? "#818cf8",
@@ -180,7 +185,7 @@ export class NonleyEmbed {
     if (this.reconnectAttempts >= this.maxReconnectAttempts) return;
 
     this.currentRoomHash = await hashPath(window.location.pathname);
-    const wsUrl = `wss://presence.nonley.com?site=${encodeURIComponent(this.config.siteId)}&room=${encodeURIComponent(this.currentRoomHash ?? "")}`;
+    const wsUrl = `${this.config.wsUrl}?site=${encodeURIComponent(this.config.siteId)}&room=${encodeURIComponent(this.currentRoomHash ?? "")}`;
 
     try {
       this.ws = new WebSocket(wsUrl);

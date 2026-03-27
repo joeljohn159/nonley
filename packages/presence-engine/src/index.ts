@@ -194,6 +194,12 @@ async function main() {
   });
 }
 
+// Catch unhandled rejections (e.g. from setTimeout async callbacks in handlers)
+// so they don't crash the process in production
+process.on("unhandledRejection", (reason) => {
+  console.error("[presence] Unhandled promise rejection:", reason);
+});
+
 main().catch((err) => {
   console.error("[presence] Fatal error:", err);
   process.exit(1);

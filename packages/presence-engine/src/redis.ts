@@ -151,6 +151,51 @@ declare module "ioredis" {
 }
 
 /**
+ * Type-safe wrappers for custom Lua commands.
+ * Eliminates unsafe `as never as` casts throughout the codebase.
+ */
+export const commands = {
+  async roomJoin(
+    redis: Redis,
+    roomHash: string,
+    userId: string,
+  ): Promise<number> {
+    return (
+      redis as Redis & { roomJoin: (...args: string[]) => Promise<number> }
+    ).roomJoin(KEYS.roomUsers(roomHash), KEYS.roomCount(roomHash), userId);
+  },
+
+  async roomLeave(
+    redis: Redis,
+    roomHash: string,
+    userId: string,
+  ): Promise<number> {
+    return (
+      redis as Redis & { roomLeave: (...args: string[]) => Promise<number> }
+    ).roomLeave(
+      KEYS.roomUsers(roomHash),
+      KEYS.roomCount(roomHash),
+      KEYS.roomGroupChats(roomHash),
+      userId,
+    );
+  },
+
+  async rateLimit(
+    redis: Redis,
+    key: string,
+    ttlSeconds: number,
+    maxCount: number,
+  ): Promise<{ count: number; allowed: boolean }> {
+    const [count, allowed] = await (
+      redis as Redis & {
+        rateLimit: (...args: string[]) => Promise<[number, number]>;
+      }
+    ).rateLimit(key, ttlSeconds.toString(), maxCount.toString());
+    return { count, allowed: allowed === 1 };
+  },
+};
+
+/**
  * Safely parse JSON from Redis. Returns null on failure instead of throwing.
  */
 export function safeParseJson<T>(data: string | null): T | null {

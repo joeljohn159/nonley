@@ -1,6 +1,6 @@
 import type Redis from "ioredis";
 
-import { KEYS } from "./redis";
+import { KEYS, commands } from "./redis";
 
 /**
  * Periodically scans for users whose heartbeats have expired
@@ -13,6 +13,9 @@ export function startHeartbeatCleanup(
   const CLEANUP_INTERVAL_MS = 60_000;
 
   return setInterval(async () => {
+    let scannedUsers = 0;
+    let removedStale = 0;
+
     try {
       let cursor = "0";
       do {
@@ -28,39 +31,40 @@ export function startHeartbeatCleanup(
         for (const userRoomsKey of keys) {
           const userId = userRoomsKey.split(":")[1];
           if (!userId) continue;
+          scannedUsers++;
 
-          const rooms = await redis.smembers(userRoomsKey);
-          for (const roomHash of rooms) {
-            const heartbeatKey = KEYS.userHeartbeat(userId, roomHash);
-            const exists = await redis.exists(heartbeatKey);
+          try {
+            const rooms = await redis.smembers(userRoomsKey);
+            for (const roomHash of rooms) {
+              const heartbeatKey = KEYS.userHeartbeat(userId, roomHash);
+              const exists = await redis.exists(heartbeatKey);
 
-            if (!exists) {
-              // Heartbeat expired — use atomic Lua script to clean up
-              console.log(
-                `[cleanup] Removing stale user ${userId} from room ${roomHash}`,
-              );
+              if (!exists) {
+                // Heartbeat expired — use atomic Lua script to clean up
+                console.log(
+                  `[cleanup] Removing stale user ${userId} from room ${roomHash}`,
+                );
 
-              await (
-                redis as never as {
-                  roomLeave: (
-                    a: string,
-                    b: string,
-                    c: string,
-                    d: string,
-                  ) => Promise<number>;
-                }
-              ).roomLeave(
-                KEYS.roomUsers(roomHash),
-                KEYS.roomCount(roomHash),
-                KEYS.roomGroupChats(roomHash),
-                userId,
-              );
-
-              await redis.srem(KEYS.userRooms(userId), roomHash);
+                await commands.roomLeave(redis, roomHash, userId);
+                await redis.srem(KEYS.userRooms(userId), roomHash);
+                removedStale++;
+              }
             }
+          } catch (userErr) {
+            // Isolate per-user failures so one bad state doesn't block the rest
+            console.error(
+              `[cleanup] Failed to clean up user ${userId}:`,
+              userErr,
+            );
           }
         }
       } while (cursor !== "0");
+
+      if (removedStale > 0) {
+        console.log(
+          `[cleanup] Cycle complete: scanned=${scannedUsers} removed=${removedStale}`,
+        );
+      }
     } catch (err) {
       console.error("[cleanup] Error during heartbeat cleanup:", err);
     }

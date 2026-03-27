@@ -33,7 +33,8 @@ export const usePresenceStore = create<PresenceState>((set) => ({
     }),
   addReaction: (reaction) =>
     set((state) => ({
-      pendingReactions: [...state.pendingReactions, reaction],
+      // Cap at 50 to prevent unbounded growth on busy pages
+      pendingReactions: [...state.pendingReactions, reaction].slice(-50),
     })),
   clearReaction: (index) =>
     set((state) => ({

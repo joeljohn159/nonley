@@ -4,6 +4,21 @@ import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { stripe } from "@/lib/stripe";
 
+// Track recently processed event IDs to prevent duplicate processing.
+// In production, this should be backed by a database or Redis.
+const processedEvents = new Map<string, number>();
+const DEDUP_WINDOW_MS = 60 * 60 * 1000; // 1 hour
+
+// Clean up stale entries periodically
+setInterval(() => {
+  const cutoff = Date.now() - DEDUP_WINDOW_MS;
+  for (const [key, ts] of processedEvents) {
+    if (ts < cutoff) {
+      processedEvents.delete(key);
+    }
+  }
+}, 10 * 60_000);
+
 export async function POST(req: NextRequest) {
   const body = await req.text();
   const sig = req.headers.get("stripe-signature");
@@ -28,6 +43,12 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "Invalid signature" }, { status: 400 });
   }
 
+  // Idempotency: skip duplicate webhook deliveries
+  if (processedEvents.has(event.id)) {
+    return NextResponse.json({ received: true, duplicate: true });
+  }
+  processedEvents.set(event.id, Date.now());
+
   try {
     switch (event.type) {
       case "checkout.session.completed": {
@@ -40,6 +61,9 @@ export async function POST(req: NextRequest) {
               plan: "pro",
             },
           });
+          console.log(
+            `[stripe] Checkout completed: customer=${session.customer}`,
+          );
         }
         break;
       }
@@ -59,6 +83,9 @@ export async function POST(req: NextRequest) {
             where: { stripeCustomerId: sub.customer as string },
             data: { plan },
           });
+          console.log(
+            `[stripe] Subscription updated: customer=${sub.customer} plan=${plan}`,
+          );
         }
         break;
       }
@@ -70,6 +97,9 @@ export async function POST(req: NextRequest) {
             where: { stripeCustomerId: sub.customer as string },
             data: { plan: "free", stripeSubscriptionId: null },
           });
+          console.log(
+            `[stripe] Subscription cancelled: customer=${sub.customer}`,
+          );
         }
         break;
       }
@@ -79,7 +109,7 @@ export async function POST(req: NextRequest) {
         const invoice = event.data.object;
         if (invoice.customer) {
           console.warn(
-            `[stripe] Payment failed for customer ${invoice.customer}. Grace period: ${STRIPE_CONFIG.GRACE_PERIOD_DAYS} days.`,
+            `[stripe] Payment failed: customer=${invoice.customer} grace_period=${STRIPE_CONFIG.GRACE_PERIOD_DAYS}d`,
           );
           // The actual downgrade happens when subscription.deleted fires
           // after Stripe exhausts its retry attempts (configurable in Stripe dashboard)
@@ -88,7 +118,10 @@ export async function POST(req: NextRequest) {
       }
     }
   } catch (error) {
-    console.error("[stripe] Webhook handler error:", error);
+    console.error(
+      `[stripe] Webhook handler error: event=${event.type} id=${event.id}`,
+      error,
+    );
     return NextResponse.json(
       { error: "Webhook handler failed" },
       { status: 500 },

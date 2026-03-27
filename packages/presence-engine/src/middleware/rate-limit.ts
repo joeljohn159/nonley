@@ -35,6 +35,9 @@ const EVENT_LIMITS: Record<string, RateLimitConfig> = {
   send_reaction: { maxEvents: 10, windowMs: 60_000 },
 };
 
+// Events where rate limiting should be silent (no user-facing feedback needed)
+const SILENT_RATE_LIMIT = new Set(["heartbeat"]);
+
 interface WindowEntry {
   timestamps: number[];
 }
@@ -70,7 +73,13 @@ export function applyRateLimiting(socket: Socket): void {
       entry.timestamps = entry.timestamps.filter((t) => t > cutoff);
 
       if (entry.timestamps.length >= config.maxEvents) {
-        // Rate limited — silently drop
+        // Rate limited — notify client unless it's a silent event
+        if (!SILENT_RATE_LIMIT.has(event)) {
+          socket.emit("error", {
+            code: "RATE_LIMITED",
+            message: `Too many ${event.replace(/_/g, " ")} actions. Please slow down.`,
+          });
+        }
         return;
       }
 

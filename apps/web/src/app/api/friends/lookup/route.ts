@@ -1,10 +1,26 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { requireAuth, successResponse, errorResponse } from "@/lib/api-helpers";
+import {
+  requireAuth,
+  successResponse,
+  errorResponse,
+  ApiError,
+} from "@/lib/api-helpers";
 import { prisma } from "@/lib/prisma";
 
-// Simple in-memory rate limiter for lookup (10 lookups per minute per user)
+// In-memory rate limiter for lookup (10 lookups per minute per user)
 const lookupAttempts = new Map<string, { count: number; resetAt: number }>();
+
+// Prevent unbounded memory growth: evict expired entries periodically
+const CLEANUP_INTERVAL_MS = 5 * 60_000;
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of lookupAttempts) {
+    if (now > entry.resetAt) {
+      lookupAttempts.delete(key);
+    }
+  }
+}, CLEANUP_INTERVAL_MS);
 
 function checkRateLimit(userId: string): boolean {
   const now = Date.now();
@@ -37,8 +53,8 @@ export async function GET(req: NextRequest) {
     }
 
     const email = req.nextUrl.searchParams.get("email")?.toLowerCase().trim();
-    if (!email || !email.includes("@")) {
-      return errorResponse(new Error("Valid email is required"));
+    if (!email || !email.includes("@") || email.length > 320) {
+      throw new ApiError(400, "INVALID_EMAIL", "Valid email is required");
     }
 
     const user = await prisma.user.findUnique({
@@ -46,12 +62,10 @@ export async function GET(req: NextRequest) {
       select: { id: true, name: true, avatarUrl: true },
     });
 
-    if (!user) {
-      return errorResponse(new Error("User not found"));
-    }
-
-    if (user.id === userId) {
-      return errorResponse(new Error("Cannot look up yourself"));
+    // Return the same shape whether user exists or not to prevent email enumeration.
+    // The client should handle null userId gracefully.
+    if (!user || user.id === userId) {
+      return successResponse(null);
     }
 
     return successResponse({
