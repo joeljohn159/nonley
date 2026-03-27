@@ -87,8 +87,8 @@ describe("authenticateSocket", () => {
 
     expect(socket.data.userId).toBe("u123");
     expect(socket.data.email).toBe("test@example.com");
-    expect(socket.data.name).toBe("Test User");
-    expect(socket.data.avatarUrl).toBe("https://example.com/avatar.png");
+    expect(socket.data.userName).toBe("Test User");
+    expect(socket.data.userAvatar).toBe("https://example.com/avatar.png");
   });
 
   it("calls next() with no error for a valid token", () => {
@@ -123,7 +123,7 @@ describe("authenticateSocket", () => {
 
     authenticateSocket(socket, next);
 
-    expect(socket.data.name).toBeNull();
-    expect(socket.data.avatarUrl).toBeNull();
+    expect(socket.data.userName).toBeNull();
+    expect(socket.data.userAvatar).toBeNull();
   });
 });
