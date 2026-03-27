@@ -24,7 +24,6 @@ export async function GET(req: NextRequest) {
           avatarUrl: true,
           plan: true,
           isAdmin: true,
-          isBot: true,
           createdAt: true,
         },
         skip: (page - 1) * pageSize,

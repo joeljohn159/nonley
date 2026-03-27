@@ -1,6 +1,6 @@
 export type ReactionType = "wave" | "nod" | "lightbulb" | "question" | "fire";
 
-export type ChatType = "whisper" | "room";
+export type ChatType = "whisper" | "room" | "group" | "next_person";
 
 export interface Reaction {
   type: ReactionType;
@@ -55,4 +55,33 @@ export interface RoomChatMessage {
   senderAvatar: string;
   content: string;
   createdAt: Date;
+}
+
+export interface GroupChatInfo {
+  id: string;
+  name: string;
+  roomHash: string;
+  participantCount: number;
+  maxParticipants: number | null;
+  createdBy: { userId: string; name: string; avatarUrl: string };
+  isActive: boolean;
+}
+
+export interface NextPersonMatch {
+  chatId: string;
+  matchedUser: {
+    userId: string;
+    name: string;
+    avatarUrl: string;
+  };
+}
+
+export interface ChatLimitsInfo {
+  plan: string;
+  whisperInitiationsToday: number;
+  whisperInitiationsMax: number;
+  nextPersonSkipsToday: number;
+  nextPersonSkipsMax: number;
+  groupCreationsToday: number;
+  groupCreationsMax: number;
 }

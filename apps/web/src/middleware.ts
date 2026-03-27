@@ -22,6 +22,8 @@ export default withAuth(
 export const config = {
   matcher: [
     "/",
+    "/chat/:path*",
+    "/friends/:path*",
     "/circles/:path*",
     "/discover/:path*",
     "/settings/:path*",
@@ -30,7 +32,9 @@ export const config = {
     "/api/circles/:path*",
     "/api/profiles/:path*",
     "/api/connections/:path*",
+    "/api/friends/:path*",
     "/api/settings/:path*",
     "/api/admin/:path*",
+    "/api/ws-token",
   ],
 };

@@ -21,6 +21,43 @@ export const CHAT = {
   EXPIRY_HOURS: 24,
   ROOM_CHAT_MIN_USERS: 3,
   LINK_STRIPPING: true,
+  MAX_GROUP_CHAT_NAME_LENGTH: 50,
+  GROUP_CHAT_EXPIRY_HOURS: 24,
+  WHISPER_REQUEST_TIMEOUT_MS: 30_000,
+} as const;
+
+export const CHAT_LIMITS = {
+  FREE: {
+    whisperInitiationsPerDay: 5,
+    nextPersonSkipsPerDay: 10,
+    groupCreationsPerDay: 2,
+    maxGroupParticipants: 5,
+  },
+  PRO: {
+    whisperInitiationsPerDay: 50,
+    nextPersonSkipsPerDay: 100,
+    groupCreationsPerDay: 20,
+    maxGroupParticipants: 20,
+  },
+  SITE: {
+    whisperInitiationsPerDay: 999,
+    nextPersonSkipsPerDay: 999,
+    groupCreationsPerDay: 999,
+    maxGroupParticipants: 50,
+  },
+  COMMUNITY: {
+    whisperInitiationsPerDay: 999,
+    nextPersonSkipsPerDay: 999,
+    groupCreationsPerDay: 999,
+    maxGroupParticipants: 100,
+  },
+} as const;
+
+export const NEXT_PERSON = {
+  COOLDOWN_BETWEEN_SKIPS_MS: 3_000,
+  SESSION_TIMEOUT_MS: 300_000,
+  MATCH_RETRY_ATTEMPTS: 3,
+  EXCLUDE_RECENTLY_MATCHED_HOURS: 1,
 } as const;
 
 export const UI = {

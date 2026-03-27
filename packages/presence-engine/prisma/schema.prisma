@@ -17,7 +17,6 @@ model User {
   privacyDefault        String              @default("circles_only") @map("privacy_default")
   focusMode             Boolean             @default(false) @map("focus_mode")
   isAdmin               Boolean             @default(false) @map("is_admin")
-  isBot                 Boolean             @default(false) @map("is_bot")
   stripeCustomerId      String?             @map("stripe_customer_id")
   stripeSubscriptionId  String?             @map("stripe_subscription_id")
   plan                  String              @default("free")
@@ -33,9 +32,18 @@ model User {
   sentMessages          MicroChatMessage[]
   integrations          Integration[]
   embedSites            EmbedSite[]
-  botProfile            BotProfile?
   accounts              Account[]
   sessions              Session[]
+  createdChats          MicroChat[]          @relation("ChatCreator")
+  nextPersonLogs        NextPersonLog[]      @relation("NextPersonLogs")
+  chatInitiations       ChatInitiationLog[]  @relation("ChatInitiations")
+  sentFriendRequests    FriendRequest[]     @relation("SentFriendRequests")
+  receivedFriendRequests FriendRequest[]    @relation("ReceivedFriendRequests")
+  friendshipsA          Friendship[]        @relation("FriendshipsA")
+  friendshipsB          Friendship[]        @relation("FriendshipsB")
+  sentFriendMessages    FriendMessage[]     @relation("SentFriendMessages")
+  outgoingCalls         CallLog[]           @relation("OutgoingCalls")
+  incomingCalls         CallLog[]           @relation("IncomingCalls")
 
   @@map("users")
 }
@@ -134,6 +142,70 @@ model Connection {
   @@map("connections")
 }
 
+model FriendRequest {
+  id        String   @id @default(uuid()) @db.Uuid
+  fromId    String   @map("from_id") @db.Uuid
+  toId      String   @map("to_id") @db.Uuid
+  status    String   @default("pending") // pending, accepted, declined
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  from User @relation("SentFriendRequests", fields: [fromId], references: [id], onDelete: Cascade)
+  to   User @relation("ReceivedFriendRequests", fields: [toId], references: [id], onDelete: Cascade)
+
+  @@unique([fromId, toId])
+  @@index([toId, status])
+  @@map("friend_requests")
+}
+
+model Friendship {
+  id        String          @id @default(uuid()) @db.Uuid
+  userAId   String          @map("user_a_id") @db.Uuid
+  userBId   String          @map("user_b_id") @db.Uuid
+  createdAt DateTime        @default(now()) @map("created_at")
+
+  userA    User             @relation("FriendshipsA", fields: [userAId], references: [id], onDelete: Cascade)
+  userB    User             @relation("FriendshipsB", fields: [userBId], references: [id], onDelete: Cascade)
+  messages FriendMessage[]
+
+  @@unique([userAId, userBId])
+  @@index([userBId])
+  @@map("friendships")
+}
+
+model FriendMessage {
+  id           String     @id @default(uuid()) @db.Uuid
+  friendshipId String     @map("friendship_id") @db.Uuid
+  senderId     String     @map("sender_id") @db.Uuid
+  content      String
+  createdAt    DateTime   @default(now()) @map("created_at")
+
+  friendship Friendship @relation(fields: [friendshipId], references: [id], onDelete: Cascade)
+  sender     User       @relation("SentFriendMessages", fields: [senderId], references: [id], onDelete: Cascade)
+
+  @@index([friendshipId, createdAt])
+  @@map("friend_messages")
+}
+
+model CallLog {
+  id         String    @id @default(uuid()) @db.Uuid
+  callerId   String    @map("caller_id") @db.Uuid
+  calleeId   String    @map("callee_id") @db.Uuid
+  type       String    // "audio" | "video"
+  status     String    @default("ringing") // ringing, active, ended, missed, declined
+  createdAt  DateTime  @default(now()) @map("created_at")
+  startedAt  DateTime? @map("started_at")
+  endedAt    DateTime? @map("ended_at")
+  duration   Int?      // seconds
+
+  caller User @relation("OutgoingCalls", fields: [callerId], references: [id], onDelete: Cascade)
+  callee User @relation("IncomingCalls", fields: [calleeId], references: [id], onDelete: Cascade)
+
+  @@index([callerId, createdAt])
+  @@index([calleeId, createdAt])
+  @@map("call_logs")
+}
+
 model SitePrivacyRule {
   userId     String @map("user_id") @db.Uuid
   urlPattern String @map("url_pattern")
@@ -159,16 +231,23 @@ model Wave {
 }
 
 model MicroChat {
-  id           String              @id @default(uuid()) @db.Uuid
-  roomHash     String              @map("room_hash")
-  type         String              @default("room")
-  participants String[]            @db.Uuid
-  createdAt    DateTime            @default(now()) @map("created_at")
-  expiresAt    DateTime?           @map("expires_at")
-  savedBy      String[]            @default([]) @map("saved_by") @db.Uuid
+  id              String              @id @default(uuid()) @db.Uuid
+  roomHash        String              @map("room_hash")
+  type            String              @default("room")
+  name            String?
+  createdById     String?             @map("created_by") @db.Uuid
+  participants    String[]            @db.Uuid
+  maxParticipants Int?                @map("max_participants")
+  isActive        Boolean             @default(true) @map("is_active")
+  createdAt       DateTime            @default(now()) @map("created_at")
+  expiresAt       DateTime?           @map("expires_at")
+  savedBy         String[]            @default([]) @map("saved_by") @db.Uuid
 
-  messages     MicroChatMessage[]
+  messages        MicroChatMessage[]
+  creator         User?               @relation("ChatCreator", fields: [createdById], references: [id])
 
+  @@index([roomHash, type])
+  @@index([createdById])
   @@map("micro_chats")
 }
 
@@ -213,19 +292,6 @@ model EmbedSite {
   @@map("embed_sites")
 }
 
-model BotProfile {
-  id           String   @id @default(uuid()) @db.Uuid
-  userId       String   @unique @map("user_id") @db.Uuid
-  behaviorType String   @map("behavior_type")
-  activeUrls   String[] @default([]) @map("active_urls")
-  activeHours  Json     @default("{}") @map("active_hours")
-  autoWave     Boolean  @default(false) @map("auto_wave")
-  createdAt    DateTime @default(now()) @map("created_at")
-
-  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
-
-  @@map("bot_profiles")
-}
 
 model AdminAuditLog {
   id           String   @id @default(uuid()) @db.Uuid
@@ -237,4 +303,33 @@ model AdminAuditLog {
   createdAt    DateTime @default(now()) @map("created_at")
 
   @@map("admin_audit_logs")
+}
+
+model NextPersonLog {
+  id          String   @id @default(uuid()) @db.Uuid
+  userId      String   @map("user_id") @db.Uuid
+  roomHash    String   @map("room_hash")
+  matchedWith String   @map("matched_with") @db.Uuid
+  chatId      String?  @map("chat_id") @db.Uuid
+  skipped     Boolean  @default(false)
+  createdAt   DateTime @default(now()) @map("created_at")
+
+  user User @relation("NextPersonLogs", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("next_person_logs")
+}
+
+model ChatInitiationLog {
+  id        String   @id @default(uuid()) @db.Uuid
+  userId    String   @map("user_id") @db.Uuid
+  targetId  String   @map("target_id") @db.Uuid
+  roomHash  String   @map("room_hash")
+  chatId    String   @map("chat_id") @db.Uuid
+  createdAt DateTime @default(now()) @map("created_at")
+
+  user User @relation("ChatInitiations", fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("chat_initiation_logs")
 }

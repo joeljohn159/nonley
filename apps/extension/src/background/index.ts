@@ -3,6 +3,7 @@ import type { RoomPresence, Reaction } from "@nonley/types";
 
 let presenceClient: PresenceClient | null = null;
 let currentTab: { tabId: number; roomHash: string } | null = null;
+const activeTabs = new Map<number, string>(); // tabId -> roomHash
 
 // Restore state on service worker wake
 chrome.storage.session.get(["currentTab"], (result) => {
@@ -40,6 +41,105 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       presenceClient?.sendReaction(message.reactionType, message.toUserId);
       sendResponse({ ok: true });
       break;
+    case "SEND_ROOM_CHAT":
+      if (currentTab) {
+        presenceClient?.sendRoomChat(currentTab.roomHash, message.content);
+      }
+      sendResponse({ ok: true });
+      break;
+    case "INITIATE_WHISPER":
+      presenceClient?.initiateWhisper(message.targetUserId);
+      sendResponse({ ok: true });
+      break;
+    case "ACCEPT_WHISPER":
+      presenceClient?.acceptWhisper(message.chatId);
+      sendResponse({ ok: true });
+      break;
+    case "DECLINE_WHISPER":
+      presenceClient?.declineWhisper(message.chatId);
+      sendResponse({ ok: true });
+      break;
+    case "CREATE_GROUP_CHAT":
+      presenceClient?.createGroupChat(message.name, message.maxParticipants);
+      sendResponse({ ok: true });
+      break;
+    case "JOIN_GROUP_CHAT":
+      presenceClient?.joinGroupChat(message.chatId);
+      sendResponse({ ok: true });
+      break;
+    case "LEAVE_GROUP_CHAT":
+      presenceClient?.leaveGroupChat(message.chatId);
+      sendResponse({ ok: true });
+      break;
+    case "SEND_GROUP_CHAT":
+      presenceClient?.sendGroupChat(message.chatId, message.content);
+      sendResponse({ ok: true });
+      break;
+    case "LIST_GROUP_CHATS":
+      if (currentTab) {
+        presenceClient?.listGroupChats(currentTab.roomHash);
+      }
+      sendResponse({ ok: true });
+      break;
+    case "NEXT_PERSON":
+      if (currentTab) {
+        presenceClient?.nextPerson(currentTab.roomHash);
+      }
+      sendResponse({ ok: true });
+      break;
+    case "END_NEXT_PERSON":
+      presenceClient?.endNextPerson(message.chatId);
+      sendResponse({ ok: true });
+      break;
+    case "GET_CHAT_LIMITS":
+      presenceClient?.getChatLimits();
+      sendResponse({ ok: true });
+      break;
+
+    // Friends
+    case "SEND_FRIEND_REQUEST":
+      presenceClient?.sendFriendRequest(message.targetUserId);
+      sendResponse({ ok: true });
+      break;
+    case "ACCEPT_FRIEND_REQUEST":
+      presenceClient?.acceptFriendRequest(message.requestId);
+      sendResponse({ ok: true });
+      break;
+    case "DECLINE_FRIEND_REQUEST":
+      presenceClient?.declineFriendRequest(message.requestId);
+      sendResponse({ ok: true });
+      break;
+    case "REMOVE_FRIEND":
+      presenceClient?.removeFriend(message.friendshipId);
+      sendResponse({ ok: true });
+      break;
+    case "SEND_FRIEND_MESSAGE":
+      presenceClient?.sendFriendMessage(message.friendshipId, message.content);
+      sendResponse({ ok: true });
+      break;
+
+    // Calls
+    case "CALL_USER":
+      presenceClient?.callUser(message.targetUserId, message.callType);
+      sendResponse({ ok: true });
+      break;
+    case "ACCEPT_CALL":
+      presenceClient?.acceptCall(message.callId);
+      sendResponse({ ok: true });
+      break;
+    case "DECLINE_CALL":
+      presenceClient?.declineCall(message.callId);
+      sendResponse({ ok: true });
+      break;
+    case "END_CALL":
+      presenceClient?.endCall(message.callId);
+      sendResponse({ ok: true });
+      break;
+    case "SEND_CALL_SIGNAL":
+      presenceClient?.sendCallSignal(message.callId, message.signal);
+      sendResponse({ ok: true });
+      break;
+
     case "GET_STATE":
       sendResponse({
         connected: presenceClient?.connected ?? false,
@@ -47,10 +147,23 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
       });
       break;
     case "PAGE_UNLOAD":
+      if (sender.tab?.id) {
+        activeTabs.delete(sender.tab.id);
+      }
       if (currentTab && currentTab.tabId === sender.tab?.id) {
-        presenceClient?.leaveRoom();
-        currentTab = null;
-        chrome.storage.session.remove("currentTab");
+        const roomHash = currentTab.roomHash;
+        const otherTab = [...activeTabs.entries()].find(
+          ([, hash]) => hash === roomHash,
+        );
+        if (!otherTab) {
+          presenceClient?.leaveRoom();
+        }
+        currentTab = otherTab ? { tabId: otherTab[0], roomHash } : null;
+        if (currentTab) {
+          chrome.storage.session.set({ currentTab });
+        } else {
+          chrome.storage.session.remove("currentTab");
+        }
       }
       sendResponse({ ok: true });
       break;
@@ -79,12 +192,26 @@ chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
   }
 });
 
-// Tab closed - leave room
+// Tab closed - clean up
 chrome.tabs.onRemoved.addListener((tabId) => {
+  activeTabs.delete(tabId);
   if (currentTab && currentTab.tabId === tabId) {
-    presenceClient?.leaveRoom();
-    currentTab = null;
-    chrome.storage.session.remove("currentTab");
+    // Only leave the room if no other tabs are on the same roomHash
+    const roomHash = currentTab.roomHash;
+    const otherTabOnSameRoom = [...activeTabs.entries()].find(
+      ([, hash]) => hash === roomHash,
+    );
+    if (!otherTabOnSameRoom) {
+      presenceClient?.leaveRoom();
+    }
+    currentTab = otherTabOnSameRoom
+      ? { tabId: otherTabOnSameRoom[0], roomHash }
+      : null;
+    if (currentTab) {
+      chrome.storage.session.set({ currentTab });
+    } else {
+      chrome.storage.session.remove("currentTab");
+    }
   }
 });
 
@@ -121,6 +248,9 @@ async function handleTabChange(url: string, tabId: number | undefined) {
 
   const roomHash = await hashUrlSha256(url);
 
+  // Track this tab
+  activeTabs.set(tabId, roomHash);
+
   // Leave previous room if different
   if (currentTab && currentTab.roomHash !== roomHash) {
     presenceClient?.leaveRoom();
@@ -131,6 +261,22 @@ async function handleTabChange(url: string, tabId: number | undefined) {
 
   ensureConnected();
   presenceClient?.joinRoom({ roomHash, urlHash: roomHash });
+  presenceClient?.getChatLimits();
+  presenceClient?.listGroupChats(roomHash);
+}
+
+function forwardToTab(type: string, data: Record<string, unknown>) {
+  if (!currentTab) return;
+  const targetRoomHash = currentTab.roomHash;
+  // Send to ALL tabs on the same roomHash, not just currentTab
+  for (const [tabId, roomHash] of activeTabs) {
+    if (roomHash === targetRoomHash) {
+      chrome.tabs.sendMessage(tabId, { type, ...data }).catch(() => {
+        // Tab may have been closed or lacks content script — clean up
+        activeTabs.delete(tabId);
+      });
+    }
+  }
 }
 
 function ensureConnected() {
@@ -140,23 +286,13 @@ function ensureConnected() {
     const token = result.authToken as string | undefined;
     if (!token) return;
 
-    const wsUrl =
-      (result.wsUrl as string | undefined) ?? "wss://presence.nonley.com";
+    const wsUrl = (result.wsUrl as string | undefined) ?? "ws://localhost:3001";
 
     presenceClient = new PresenceClient({
       url: wsUrl,
       token,
       onPresenceUpdate: (room: RoomPresence) => {
-        if (currentTab) {
-          chrome.tabs
-            .sendMessage(currentTab.tabId, {
-              type: "PRESENCE_UPDATE",
-              room,
-            })
-            .catch(() => {
-              /* tab may not have content script */
-            });
-        }
+        forwardToTab("PRESENCE_UPDATE", { room });
         // Update badge
         const count = room.totalCount;
         chrome.action.setBadgeText({
@@ -165,23 +301,104 @@ function ensureConnected() {
         chrome.action.setBadgeBackgroundColor({ color: "#818cf8" });
       },
       onReaction: (reaction: Reaction) => {
-        if (currentTab) {
-          chrome.tabs
-            .sendMessage(currentTab.tabId, {
-              type: "REACTION",
-              reaction,
-            })
-            .catch(() => {});
-        }
+        forwardToTab("REACTION", { reaction });
       },
+      onRoomChatMessage: (message) => {
+        forwardToTab("ROOM_CHAT_MESSAGE", { message });
+      },
+      // 1-1 whisper lifecycle
+      onWhisperRequest: (payload) => {
+        forwardToTab("WHISPER_REQUEST", { payload });
+      },
+      onWhisperAccepted: (payload) => {
+        forwardToTab("WHISPER_ACCEPTED", { payload });
+      },
+      onWhisperDeclined: (payload) => {
+        forwardToTab("WHISPER_DECLINED", { payload });
+      },
+
+      // Group chat
+      onGroupChatCreated: (chat) => {
+        forwardToTab("GROUP_CHAT_CREATED", { chat });
+      },
+      onGroupChatJoined: (payload) => {
+        forwardToTab("GROUP_CHAT_JOINED", { payload });
+      },
+      onGroupChatLeft: (payload) => {
+        forwardToTab("GROUP_CHAT_LEFT", { payload });
+      },
+      onGroupChatMessage: (message) => {
+        forwardToTab("GROUP_CHAT_MESSAGE", { message });
+      },
+      onGroupChatList: (chats) => {
+        forwardToTab("GROUP_CHAT_LIST", { chats });
+      },
+
+      // Next person
+      onNextPersonMatched: (match) => {
+        forwardToTab("NEXT_PERSON_MATCHED", { match });
+      },
+      onNextPersonNoMatch: (payload) => {
+        forwardToTab("NEXT_PERSON_NO_MATCH", { payload });
+      },
+      onNextPersonEnded: (payload) => {
+        forwardToTab("NEXT_PERSON_ENDED", { payload });
+      },
+
+      // Limits
+      onChatLimits: (limits) => {
+        forwardToTab("CHAT_LIMITS", { limits });
+      },
+      onLimitExceeded: (payload) => {
+        forwardToTab("LIMIT_EXCEEDED", { payload });
+      },
+
+      // Friends
+      onFriendRequestReceived: (request) => {
+        forwardToTab("FRIEND_REQUEST_RECEIVED", { request });
+      },
+      onFriendRequestAccepted: (request) => {
+        forwardToTab("FRIEND_REQUEST_ACCEPTED", { request });
+      },
+      onFriendRequestDeclined: (request) => {
+        forwardToTab("FRIEND_REQUEST_DECLINED", { request });
+      },
+      onFriendOnline: (payload) => {
+        forwardToTab("FRIEND_ONLINE", { payload });
+      },
+      onFriendOffline: (payload) => {
+        forwardToTab("FRIEND_OFFLINE", { payload });
+      },
+      onFriendMessage: (message) => {
+        forwardToTab("FRIEND_MESSAGE", { message });
+      },
+
+      // Calls
+      onCallIncoming: (call) => {
+        forwardToTab("CALL_INCOMING", { call });
+      },
+      onCallAccepted: (call) => {
+        forwardToTab("CALL_ACCEPTED", { call });
+      },
+      onCallDeclined: (call) => {
+        forwardToTab("CALL_DECLINED", { call });
+      },
+      onCallEnded: (call) => {
+        forwardToTab("CALL_ENDED", { call });
+      },
+      onCallSignal: (payload) => {
+        forwardToTab("CALL_SIGNAL", { payload });
+      },
+
       onConnect: () => {
         console.log("[nonley] Connected to presence engine");
-        // Rejoin room if we have one
         if (currentTab) {
           presenceClient?.joinRoom({
             roomHash: currentTab.roomHash,
             urlHash: currentTab.roomHash,
           });
+          presenceClient?.getChatLimits();
+          presenceClient?.listGroupChats(currentTab.roomHash);
         }
       },
       onDisconnect: () => {

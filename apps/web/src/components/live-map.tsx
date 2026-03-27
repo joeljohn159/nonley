@@ -1,6 +1,7 @@
 "use client";
 
 import { PresenceClient } from "@nonley/presence-client";
+import Link from "next/link";
 import { useEffect, useState, useCallback } from "react";
 
 import { usePresenceStore } from "@/stores/presence";
@@ -8,26 +9,32 @@ import { usePresenceStore } from "@/stores/presence";
 export function LiveMap() {
   const rooms = usePresenceStore((s) => s.activeRooms);
   const updateRoom = usePresenceStore((s) => s.updateRoom);
-  const [connected, setConnected] = useState(false);
+  const [status, setStatus] = useState<"connecting" | "connected" | "error">(
+    "connecting",
+  );
 
   const initPresence = useCallback(async () => {
     try {
       const res = await fetch("/api/ws-token", { method: "POST" });
-      const { data } = await res.json();
-      if (!data?.token) return;
+      const json = await res.json();
+      if (!json.data?.token) {
+        setStatus("error");
+        return;
+      }
 
       const wsUrl = process.env.NEXT_PUBLIC_WS_URL ?? "ws://localhost:3001";
       const client = new PresenceClient({
         url: wsUrl,
-        token: data.token,
+        token: json.data.token,
         onPresenceUpdate: (room) => updateRoom(room),
-        onConnect: () => setConnected(true),
-        onDisconnect: () => setConnected(false),
+        onConnect: () => setStatus("connected"),
+        onDisconnect: () => setStatus("connecting"),
       });
       client.connect();
       return client;
     } catch (err) {
       console.error("Failed to init presence:", err);
+      setStatus("error");
     }
   }, [updateRoom]);
 
@@ -42,50 +49,89 @@ export function LiveMap() {
   }, [initPresence]);
 
   return (
-    <div className="mx-auto max-w-7xl px-6 py-12">
+    <div className="mx-auto max-w-5xl px-6 py-10">
       <div className="mb-8 flex items-center justify-between">
-        <h2 className="text-2xl font-semibold">Your Network, Live</h2>
-        <span
-          className={`flex items-center gap-2 text-xs ${connected ? "text-nonley-success" : "text-nonley-text-muted"}`}
-        >
+        <h2 className="text-[18px] font-medium text-neutral-900">
+          Your Network, Live
+        </h2>
+        <span className="flex items-center gap-2 text-[12px] text-neutral-400">
           <span
-            className={`h-2 w-2 rounded-full ${connected ? "bg-nonley-success" : "bg-nonley-border"}`}
+            className={`h-1.5 w-1.5 rounded-full ${
+              status === "connected"
+                ? "bg-emerald-500"
+                : status === "error"
+                  ? "bg-red-400"
+                  : "animate-pulse bg-amber-400"
+            }`}
           />
-          {connected ? "Connected" : "Connecting..."}
+          {status === "connected"
+            ? "Connected"
+            : status === "error"
+              ? "Disconnected"
+              : "Connecting..."}
         </span>
       </div>
+
       {rooms.length === 0 ? (
-        <div className="border-nonley-border bg-nonley-surface/50 flex flex-col items-center justify-center rounded-2xl border py-24 text-center">
-          <div className="mb-4 text-6xl opacity-20">&#x1F310;</div>
-          <p className="text-nonley-text-muted text-lg">
-            Your live map will populate as your network comes online.
+        <div className="flex flex-col items-center justify-center rounded-xl border border-neutral-200 bg-white py-16 text-center">
+          <div className="mb-5 flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100">
+            <svg
+              width="20"
+              height="20"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              className="text-neutral-400"
+            >
+              <circle cx="12" cy="12" r="10" />
+              <path d="M2 12h20" />
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z" />
+            </svg>
+          </div>
+          <p className="text-[15px] font-medium text-neutral-700">
+            No one online yet
           </p>
-          <p className="text-nonley-text-muted mt-2 text-sm">
-            Install the Chrome extension to start seeing who&apos;s browsing
-            with you.
+          <p className="mt-1.5 max-w-xs text-[13px] text-neutral-400">
+            Your live map will populate as your network comes online. Use the
+            Chrome extension to see who&apos;s browsing with you.
           </p>
+          <div className="mt-6 flex gap-3">
+            <Link
+              href="/chat"
+              className="rounded-lg bg-neutral-900 px-4 py-2 text-[13px] font-medium text-white transition-opacity hover:opacity-85"
+            >
+              Go to Chat
+            </Link>
+            <Link
+              href="/discover"
+              className="rounded-lg border border-neutral-200 px-4 py-2 text-[13px] font-medium text-neutral-600 transition-colors hover:border-neutral-300"
+            >
+              Discover
+            </Link>
+          </div>
         </div>
       ) : (
-        <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {rooms.map((room) => (
             <div
               key={room.roomHash}
-              className="border-nonley-border bg-nonley-surface hover:border-nonley-accent/30 hover:shadow-nonley-accent/5 rounded-xl border p-4 transition-all hover:shadow-lg"
+              className="rounded-xl border border-neutral-200 bg-white p-4 transition-colors hover:border-neutral-300"
             >
               <div className="mb-2 flex items-center gap-2">
-                <span className="bg-nonley-success h-2 w-2 rounded-full" />
-                <span className="text-sm font-medium">
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-500" />
+                <span className="text-[13px] font-medium text-neutral-800">
                   {room.totalCount} online
                 </span>
               </div>
               {room.ring1.length > 0 && (
-                <div className="mb-2">
-                  <span className="text-nonley-text-muted text-xs">
-                    {room.ring1.length} friends
-                  </span>
-                </div>
+                <p className="mb-2 text-[12px] text-neutral-400">
+                  {room.ring1.length} friends
+                </p>
               )}
-              <p className="text-nonley-text-muted truncate font-mono text-xs">
+              <p className="truncate font-mono text-[11px] text-neutral-400">
                 {room.roomHash.slice(0, 16)}...
               </p>
             </div>

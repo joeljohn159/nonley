@@ -1,7 +1,7 @@
 "use client";
 
 import type { PrivacyLevel } from "@nonley/types";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 
 interface SettingsUser {
   name?: string | null;
@@ -81,26 +81,32 @@ export function SettingsForm({ user }: { user: SettingsUser }) {
   const focusMode = settings?.focusMode ?? false;
 
   return (
-    <div className="space-y-8">
+    <div className="space-y-6">
       {/* Profile */}
-      <section className="border-nonley-border bg-nonley-surface rounded-xl border p-6">
-        <h3 className="text-nonley-text-muted mb-4 text-sm font-semibold uppercase tracking-wider">
+      <section className="rounded-xl border border-neutral-200 bg-white p-5">
+        <h3 className="mb-4 text-[12px] font-medium uppercase tracking-wider text-neutral-400">
           Profile
         </h3>
         <div className="flex items-center gap-4">
-          {user.image && (
+          {user.image ? (
             <img
               src={user.image}
               alt={user.name ?? "Avatar"}
-              className="h-16 w-16 rounded-full"
+              className="h-12 w-12 rounded-full"
             />
+          ) : (
+            <div className="flex h-12 w-12 items-center justify-center rounded-full bg-neutral-100 text-[14px] font-medium text-neutral-500">
+              {(user.name ?? user.email ?? "?")[0]?.toUpperCase()}
+            </div>
           )}
           <div>
-            <p className="font-medium">{user.name}</p>
-            <p className="text-nonley-text-muted text-sm">{user.email}</p>
+            <p className="text-[14px] font-medium text-neutral-800">
+              {user.name}
+            </p>
+            <p className="text-[13px] text-neutral-400">{user.email}</p>
             {settings && (
-              <span className="bg-nonley-accent/20 text-nonley-accent mt-1 inline-block rounded-full px-2 py-0.5 text-xs">
-                {settings.plan} plan
+              <span className="mt-1 inline-block rounded bg-neutral-100 px-2 py-0.5 text-[11px] text-neutral-500">
+                {settings.plan}
               </span>
             )}
           </div>
@@ -108,40 +114,23 @@ export function SettingsForm({ user }: { user: SettingsUser }) {
       </section>
 
       {/* Privacy */}
-      <section className="border-nonley-border bg-nonley-surface rounded-xl border p-6">
-        <h3 className="text-nonley-text-muted mb-4 text-sm font-semibold uppercase tracking-wider">
-          Privacy
-        </h3>
-        <label htmlFor="privacy-select" className="mb-2 block text-sm">
-          Default Visibility
-        </label>
-        <select
-          id="privacy-select"
-          value={privacy}
-          onChange={(e) => saveSettings({ privacyDefault: e.target.value })}
-          disabled={saving}
-          className="border-nonley-border bg-nonley-bg text-nonley-text focus:border-nonley-accent w-full rounded-lg border px-4 py-2 text-sm focus:outline-none disabled:opacity-50"
-        >
-          <option value="open">Open - Everyone can see you</option>
-          <option value="circles_only">
-            Circles Only - Only circle members see you
-          </option>
-          <option value="anonymous">
-            Anonymous - Counted but not identified
-          </option>
-          <option value="ghost">Ghost - Completely invisible</option>
-        </select>
-      </section>
+      <PrivacyDropdown
+        value={privacy}
+        onChange={(val) => saveSettings({ privacyDefault: val })}
+        disabled={saving}
+      />
 
       {/* Focus Mode */}
-      <section className="border-nonley-border bg-nonley-surface rounded-xl border p-6">
-        <h3 className="text-nonley-text-muted mb-4 text-sm font-semibold uppercase tracking-wider">
+      <section className="rounded-xl border border-neutral-200 bg-white p-5">
+        <h3 className="mb-4 text-[12px] font-medium uppercase tracking-wider text-neutral-400">
           Focus Mode
         </h3>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium">Focus Mode</p>
-            <p className="text-nonley-text-muted text-xs">
+            <p className="text-[13px] font-medium text-neutral-700">
+              Focus Mode
+            </p>
+            <p className="text-[12px] text-neutral-400">
               Hides all Nonley UI. You&apos;re still counted in rooms.
             </p>
           </div>
@@ -151,18 +140,18 @@ export function SettingsForm({ user }: { user: SettingsUser }) {
             aria-label="Toggle focus mode"
             onClick={() => saveSettings({ focusMode: !focusMode })}
             disabled={saving}
-            className={`relative h-6 w-11 rounded-full transition-colors ${focusMode ? "bg-nonley-accent" : "bg-nonley-border"}`}
+            className={`relative h-5 w-9 rounded-full transition-colors ${focusMode ? "bg-neutral-900" : "bg-neutral-200"}`}
           >
             <span
-              className={`absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform ${focusMode ? "translate-x-5" : "translate-x-0"}`}
+              className={`absolute left-0.5 top-0.5 h-4 w-4 rounded-full bg-white shadow-sm transition-transform ${focusMode ? "translate-x-4" : "translate-x-0"}`}
             />
           </button>
         </div>
       </section>
 
       {/* Integrations */}
-      <section className="border-nonley-border bg-nonley-surface rounded-xl border p-6">
-        <h3 className="text-nonley-text-muted mb-4 text-sm font-semibold uppercase tracking-wider">
+      <section className="rounded-xl border border-neutral-200 bg-white p-5">
+        <h3 className="mb-4 text-[12px] font-medium uppercase tracking-wider text-neutral-400">
           Integrations
         </h3>
         <div className="space-y-3">
@@ -172,12 +161,12 @@ export function SettingsForm({ user }: { user: SettingsUser }) {
             );
             return (
               <div key={name} className="flex items-center justify-between">
-                <span className="text-sm">{name}</span>
+                <span className="text-[13px] text-neutral-700">{name}</span>
                 <button
-                  className={`rounded-lg border px-3 py-1.5 text-xs transition-colors ${
+                  className={`rounded-md border px-3 py-1 text-[12px] transition-colors ${
                     connected
-                      ? "border-nonley-success/30 text-nonley-success"
-                      : "border-nonley-border text-nonley-text-muted hover:border-nonley-accent/50 hover:text-nonley-text"
+                      ? "border-emerald-200 text-emerald-600"
+                      : "border-neutral-200 text-neutral-400 hover:border-neutral-300 hover:text-neutral-600"
                   }`}
                 >
                   {connected ? "Connected" : "Connect"}
@@ -189,42 +178,158 @@ export function SettingsForm({ user }: { user: SettingsUser }) {
       </section>
 
       {/* Account */}
-      <section className="bg-nonley-surface rounded-xl border border-red-900/50 p-6">
-        <h3 className="text-nonley-error mb-4 text-sm font-semibold uppercase tracking-wider">
+      <section className="rounded-xl border border-red-200 bg-white p-5">
+        <h3 className="mb-4 text-[12px] font-medium uppercase tracking-wider text-red-400">
           Account
         </h3>
         <div className="flex items-center justify-between">
           <div>
-            <p className="text-sm font-medium">Export Data</p>
-            <p className="text-nonley-text-muted text-xs">
+            <p className="text-[13px] font-medium text-neutral-700">
+              Export Data
+            </p>
+            <p className="text-[12px] text-neutral-400">
               Download all your data in JSON format
             </p>
           </div>
           <button
             onClick={handleExport}
             disabled={exporting}
-            className="border-nonley-border text-nonley-text-muted hover:border-nonley-accent/50 rounded-lg border px-3 py-1.5 text-xs transition-colors disabled:opacity-50"
+            className="rounded-md border border-neutral-200 px-3 py-1 text-[12px] text-neutral-400 transition-colors hover:border-neutral-300 hover:text-neutral-600 disabled:opacity-40"
           >
             {exporting ? "Exporting..." : "Export"}
           </button>
         </div>
-        <div className="mt-4 flex items-center justify-between">
-          <div>
-            <p className="text-nonley-error text-sm font-medium">
-              Delete Account
-            </p>
-            <p className="text-nonley-text-muted text-xs">
-              Permanently delete your account and all data
-            </p>
+        <div className="mt-4 border-t border-neutral-100 pt-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-[13px] font-medium text-red-500">
+                Delete Account
+              </p>
+              <p className="text-[12px] text-neutral-400">
+                Permanently delete your account and all data
+              </p>
+            </div>
+            <button
+              onClick={handleDelete}
+              className="rounded-md border border-red-200 px-3 py-1 text-[12px] text-red-500 transition-colors hover:bg-red-50"
+            >
+              {deleteConfirm ? "Confirm Delete" : "Delete"}
+            </button>
           </div>
-          <button
-            onClick={handleDelete}
-            className="text-nonley-error rounded-lg border border-red-900/50 px-3 py-1.5 text-xs transition-colors hover:bg-red-900/20"
-          >
-            {deleteConfirm ? "Confirm Delete" : "Delete"}
-          </button>
         </div>
       </section>
     </div>
+  );
+}
+
+const PRIVACY_OPTIONS = [
+  { value: "open", label: "Open", desc: "Everyone can see you" },
+  {
+    value: "circles_only",
+    label: "Circles Only",
+    desc: "Only circle members see you",
+  },
+  {
+    value: "anonymous",
+    label: "Anonymous",
+    desc: "Counted but not identified",
+  },
+  { value: "ghost", label: "Ghost", desc: "Completely invisible" },
+];
+
+function PrivacyDropdown({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  disabled: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const ref = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    function handleClickOutside(e: MouseEvent) {
+      if (ref.current && !ref.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const selected =
+    PRIVACY_OPTIONS.find((o) => o.value === value) ?? PRIVACY_OPTIONS[1];
+
+  return (
+    <section className="rounded-xl border border-neutral-200 bg-white p-5">
+      <h3 className="mb-4 text-[12px] font-medium uppercase tracking-wider text-neutral-400">
+        Privacy
+      </h3>
+      <p className="mb-1.5 text-[13px] text-neutral-500">Default Visibility</p>
+      <div ref={ref} className="relative">
+        <button
+          type="button"
+          onClick={() => !disabled && setOpen(!open)}
+          disabled={disabled}
+          className="flex w-full items-center justify-between rounded-lg border border-neutral-200 bg-white px-3 py-2.5 text-left text-[13px] text-neutral-700 transition-colors hover:border-neutral-300 focus:border-neutral-400 focus:outline-none disabled:opacity-40"
+        >
+          <span>
+            {selected?.label} - {selected?.desc}
+          </span>
+          <svg
+            width="16"
+            height="16"
+            viewBox="0 0 16 16"
+            fill="none"
+            className={`shrink-0 text-neutral-400 transition-transform ${open ? "rotate-180" : ""}`}
+          >
+            <path
+              d="M4 6l4 4 4-4"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+            />
+          </svg>
+        </button>
+        {open && (
+          <div className="absolute left-0 right-0 top-full z-10 mt-1 overflow-hidden rounded-lg border border-neutral-200 bg-white shadow-lg">
+            {PRIVACY_OPTIONS.map((opt) => (
+              <button
+                key={opt.value}
+                type="button"
+                onClick={() => {
+                  onChange(opt.value);
+                  setOpen(false);
+                }}
+                className={`flex w-full items-center gap-2 px-3 py-2.5 text-left text-[13px] transition-colors hover:bg-neutral-50 ${
+                  opt.value === value
+                    ? "bg-neutral-50 text-neutral-900"
+                    : "text-neutral-600"
+                }`}
+              >
+                <span
+                  className={`flex h-4 w-4 shrink-0 items-center justify-center rounded-full border ${
+                    opt.value === value
+                      ? "border-neutral-900 bg-neutral-900"
+                      : "border-neutral-300"
+                  }`}
+                >
+                  {opt.value === value && (
+                    <span className="h-1.5 w-1.5 rounded-full bg-white" />
+                  )}
+                </span>
+                <span>
+                  <span className="font-medium">{opt.label}</span>
+                  <span className="text-neutral-400"> - {opt.desc}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+        )}
+      </div>
+    </section>
   );
 }

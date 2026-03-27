@@ -9,17 +9,14 @@ export async function GET() {
   try {
     await requireAdmin();
 
-    const [userCount, botCount, circleCount, embedSiteCount] =
-      await Promise.all([
-        prisma.user.count({ where: { isBot: false } }),
-        prisma.botProfile.count(),
-        prisma.circle.count(),
-        prisma.embedSite.count(),
-      ]);
+    const [userCount, circleCount, embedSiteCount] = await Promise.all([
+      prisma.user.count(),
+      prisma.circle.count(),
+      prisma.embedSite.count(),
+    ]);
 
     return successResponse({
       users: userCount,
-      bots: botCount,
       circles: circleCount,
       embedSites: embedSiteCount,
     });

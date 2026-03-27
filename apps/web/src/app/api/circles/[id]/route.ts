@@ -21,7 +21,7 @@ export async function GET(
   { params }: { params: { id: string } },
 ) {
   try {
-    await requireAuth();
+    const session = await requireAuth();
     const circle = await prisma.circle.findUnique({
       where: { id: params.id },
       include: {
@@ -34,6 +34,19 @@ export async function GET(
       },
     });
     if (!circle) throw new ApiError(404, "NOT_FOUND", "Circle not found");
+
+    // Private circles: only members can view details
+    if (!circle.isPublic) {
+      const isMember = circle.members.some((m) => m.userId === session.user.id);
+      if (!isMember) {
+        throw new ApiError(
+          403,
+          "FORBIDDEN",
+          "You are not a member of this circle",
+        );
+      }
+    }
+
     return successResponse(circle);
   } catch (error) {
     return errorResponse(error);

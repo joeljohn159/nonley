@@ -1,6 +1,8 @@
 import { render } from "preact";
 import { useState, useEffect } from "preact/hooks";
 
+const APP_URL = "http://localhost:3000";
+
 interface PopupState {
   loading: boolean;
   authed: boolean;
@@ -37,11 +39,9 @@ function Popup() {
 
   if (state.loading) {
     return (
-      <div style={{ padding: "24px", textAlign: "center" }}>
-        <div style={{ fontSize: "20px", fontWeight: "bold", color: "#818cf8" }}>
-          nonley
-        </div>
-        <p style={{ color: "#888", fontSize: "12px", marginTop: "12px" }}>
+      <div style={styles.container}>
+        <p style={styles.brand}>nonley</p>
+        <p style={{ color: "#a3a3a3", fontSize: "13px", marginTop: "12px" }}>
           Loading...
         </p>
       </div>
@@ -50,25 +50,23 @@ function Popup() {
 
   if (!state.authed) {
     return (
-      <div style={{ padding: "24px", textAlign: "center" }}>
-        <h1
+      <div style={styles.container}>
+        <p style={styles.brand}>nonley</p>
+        <p style={{ fontSize: "14px", color: "#171717", marginBottom: "4px" }}>
+          Sign in to get started
+        </p>
+        <p
           style={{
-            fontSize: "20px",
-            fontWeight: "bold",
-            color: "#818cf8",
-            marginBottom: "8px",
+            fontSize: "12px",
+            color: "#a3a3a3",
+            marginBottom: "16px",
           }}
         >
-          nonley
-        </h1>
-        <p style={{ fontSize: "13px", color: "#888", marginBottom: "16px" }}>
-          You are never alone on the internet.
+          See who else is on the same page as you.
         </p>
         <button
-          onClick={() =>
-            chrome.tabs.create({ url: "https://nonley.com/login" })
-          }
-          style={btnPrimary}
+          onClick={() => chrome.tabs.create({ url: `${APP_URL}/login` })}
+          style={styles.btnPrimary}
         >
           Sign in to Nonley
         </button>
@@ -83,19 +81,17 @@ function Popup() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          marginBottom: "12px",
+          marginBottom: "14px",
         }}
       >
-        <h1 style={{ fontSize: "16px", fontWeight: "bold", color: "#818cf8" }}>
-          nonley
-        </h1>
+        <p style={styles.brand}>nonley</p>
         <span
           style={{
             display: "inline-flex",
             alignItems: "center",
             gap: "6px",
             fontSize: "12px",
-            color: state.connected ? "#4ade80" : "#888",
+            color: state.connected ? "#16a34a" : "#a3a3a3",
           }}
         >
           <span
@@ -103,7 +99,7 @@ function Popup() {
               width: "6px",
               height: "6px",
               borderRadius: "50%",
-              background: state.connected ? "#4ade80" : "#666",
+              background: state.connected ? "#16a34a" : "#d4d4d4",
             }}
           />
           {state.connected ? "Connected" : "Offline"}
@@ -116,16 +112,16 @@ function Popup() {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "10px 0",
-          borderBottom: "1px solid #2a2a3e",
-          marginBottom: "10px",
+          padding: "12px 0",
+          borderBottom: "1px solid #e5e5e5",
+          marginBottom: "12px",
         }}
       >
         <div>
-          <div style={{ fontSize: "13px", fontWeight: 500, color: "#e0e0e0" }}>
+          <div style={{ fontSize: "13px", fontWeight: 500, color: "#171717" }}>
             Focus Mode
           </div>
-          <div style={{ fontSize: "11px", color: "#888" }}>
+          <div style={{ fontSize: "11px", color: "#a3a3a3" }}>
             Hides all Nonley UI
           </div>
         </div>
@@ -140,12 +136,12 @@ function Popup() {
             setState((s) => ({ ...s, focusMode: newFocus }));
           }}
           style={{
-            width: "40px",
-            height: "22px",
-            borderRadius: "11px",
+            width: "36px",
+            height: "20px",
+            borderRadius: "10px",
             border: "none",
             cursor: "pointer",
-            background: state.focusMode ? "#818cf8" : "#2a2a3e",
+            background: state.focusMode ? "#171717" : "#e5e5e5",
             position: "relative",
             transition: "background 200ms",
           }}
@@ -154,54 +150,53 @@ function Popup() {
             style={{
               position: "absolute",
               top: "2px",
-              left: state.focusMode ? "20px" : "2px",
-              width: "18px",
-              height: "18px",
+              left: state.focusMode ? "18px" : "2px",
+              width: "16px",
+              height: "16px",
               borderRadius: "50%",
               background: "white",
+              boxShadow: "0 1px 2px rgba(0,0,0,0.1)",
               transition: "left 200ms",
             }}
           />
         </button>
       </div>
 
-      <div style={{ fontSize: "12px", color: "#888", marginBottom: "12px" }}>
-        <p>
-          Press{" "}
-          <kbd
-            style={{
-              background: "#2a2a3e",
-              padding: "2px 6px",
-              borderRadius: "4px",
-              fontSize: "11px",
-            }}
-          >
-            Ctrl+Shift+F
-          </kbd>{" "}
-          to toggle focus mode from any page.
-        </p>
+      <div style={{ fontSize: "11px", color: "#a3a3a3", marginBottom: "12px" }}>
+        Press{" "}
+        <kbd
+          style={{
+            background: "#f5f5f5",
+            border: "1px solid #e5e5e5",
+            padding: "1px 5px",
+            borderRadius: "3px",
+            fontSize: "10px",
+            color: "#525252",
+          }}
+        >
+          Ctrl+Shift+F
+        </kbd>{" "}
+        to toggle focus mode from any page.
       </div>
 
       <div
         style={{
           display: "flex",
           flexDirection: "column",
-          gap: "8px",
-          borderTop: "1px solid #2a2a3e",
+          gap: "6px",
+          borderTop: "1px solid #e5e5e5",
           paddingTop: "12px",
         }}
       >
         <button
-          onClick={() => chrome.tabs.create({ url: "https://nonley.com" })}
-          style={btnOutline}
+          onClick={() => chrome.tabs.create({ url: APP_URL })}
+          style={styles.btnOutline}
         >
           Open Dashboard
         </button>
         <button
-          onClick={() =>
-            chrome.tabs.create({ url: "https://nonley.com/settings" })
-          }
-          style={btnOutline}
+          onClick={() => chrome.tabs.create({ url: `${APP_URL}/settings` })}
+          style={styles.btnOutline}
         >
           Settings
         </button>
@@ -211,9 +206,9 @@ function Popup() {
             setState((s) => ({ ...s, authed: false }));
           }}
           style={{
-            ...btnOutline,
-            color: "#f87171",
-            borderColor: "rgba(248,113,113,0.3)",
+            ...styles.btnOutline,
+            color: "#ef4444",
+            borderColor: "#fecaca",
           }}
         >
           Sign Out
@@ -223,27 +218,41 @@ function Popup() {
   );
 }
 
-const btnPrimary: Record<string, string> = {
-  width: "100%",
-  padding: "10px",
-  borderRadius: "8px",
-  background: "#818cf8",
-  color: "white",
-  border: "none",
-  cursor: "pointer",
-  fontSize: "13px",
-  fontWeight: "500",
-};
-
-const btnOutline: Record<string, string> = {
-  width: "100%",
-  padding: "8px",
-  borderRadius: "8px",
-  background: "transparent",
-  color: "#818cf8",
-  border: "1px solid #2a2a3e",
-  cursor: "pointer",
-  fontSize: "12px",
+const styles = {
+  container: {
+    padding: "24px",
+    textAlign: "center" as const,
+  },
+  brand: {
+    fontSize: "13px",
+    fontWeight: "500",
+    textTransform: "uppercase" as const,
+    letterSpacing: "0.15em",
+    color: "#a3a3a3",
+    margin: "0 0 12px 0",
+  },
+  btnPrimary: {
+    width: "100%",
+    padding: "10px",
+    borderRadius: "8px",
+    background: "#171717",
+    color: "white",
+    border: "none",
+    cursor: "pointer",
+    fontSize: "13px",
+    fontWeight: "500",
+  } as Record<string, string>,
+  btnOutline: {
+    width: "100%",
+    padding: "8px",
+    borderRadius: "8px",
+    background: "white",
+    color: "#525252",
+    border: "1px solid #e5e5e5",
+    cursor: "pointer",
+    fontSize: "12px",
+    fontWeight: "500",
+  } as Record<string, string>,
 };
 
 render(<Popup />, document.getElementById("app")!);

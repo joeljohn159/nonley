@@ -26,7 +26,7 @@ export async function GET(
   try {
     await requireAuth();
     const user = await prisma.user.findUnique({
-      where: { id: params.id, isBot: false },
+      where: { id: params.id },
       select: {
         id: true,
         name: true,

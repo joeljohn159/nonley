@@ -4,17 +4,16 @@ import { KEYS } from "./redis";
 
 /**
  * Periodically scans for users whose heartbeats have expired
- * and cleans up their room presence data.
+ * and atomically cleans up their room presence data.
  * Returns the interval ID for cleanup on shutdown.
  */
 export function startHeartbeatCleanup(
   redis: Redis,
 ): ReturnType<typeof setInterval> {
-  const CLEANUP_INTERVAL_MS = 60_000; // Check every minute
+  const CLEANUP_INTERVAL_MS = 60_000;
 
   return setInterval(async () => {
     try {
-      // Scan all user:*:rooms keys to find users with rooms
       let cursor = "0";
       do {
         const [nextCursor, keys] = await redis.scan(
@@ -27,7 +26,6 @@ export function startHeartbeatCleanup(
         cursor = nextCursor;
 
         for (const userRoomsKey of keys) {
-          // Extract userId from key pattern "user:{userId}:rooms"
           const userId = userRoomsKey.split(":")[1];
           if (!userId) continue;
 
@@ -37,19 +35,28 @@ export function startHeartbeatCleanup(
             const exists = await redis.exists(heartbeatKey);
 
             if (!exists) {
-              // Heartbeat expired - clean up this user from this room
+              // Heartbeat expired — use atomic Lua script to clean up
               console.log(
                 `[cleanup] Removing stale user ${userId} from room ${roomHash}`,
               );
-              await Promise.all([
-                redis.srem(KEYS.roomUsers(roomHash), userId),
-                redis.srem(KEYS.userRooms(userId), roomHash),
-              ]);
-              // Decrement count, but never below 0
-              const count = await redis.decr(KEYS.roomCount(roomHash));
-              if (count < 0) {
-                await redis.set(KEYS.roomCount(roomHash), "0");
-              }
+
+              await (
+                redis as never as {
+                  roomLeave: (
+                    a: string,
+                    b: string,
+                    c: string,
+                    d: string,
+                  ) => Promise<number>;
+                }
+              ).roomLeave(
+                KEYS.roomUsers(roomHash),
+                KEYS.roomCount(roomHash),
+                KEYS.roomGroupChats(roomHash),
+                userId,
+              );
+
+              await redis.srem(KEYS.userRooms(userId), roomHash);
             }
           }
         }

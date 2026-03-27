@@ -27,13 +27,24 @@ export type {
   WhisperMessage,
   RoomChat,
   RoomChatMessage,
+  GroupChatInfo,
+  NextPersonMatch,
+  ChatLimitsInfo,
 } from "./chat";
 
-export type { Connection, Wave } from "./connection";
+export type {
+  Connection,
+  Wave,
+  FriendRequestStatus,
+  FriendRequest,
+  Friend,
+  FriendMessageData,
+  CallType,
+  CallStatus,
+  CallSession,
+} from "./connection";
 
 export type { EmbedPlan, EmbedColors, EmbedSite, EmbedConfig } from "./embed";
-
-export type { BotBehavior, ActiveHoursConfig, BotProfile } from "./bot";
 
 export type {
   IntegrationProvider,

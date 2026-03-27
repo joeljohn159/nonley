@@ -9,7 +9,13 @@ export async function POST() {
 
     const user = await prisma.user.findUnique({
       where: { id: session.user.id },
-      select: { id: true, email: true, name: true, avatarUrl: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        avatarUrl: true,
+        plan: true,
+      },
     });
 
     if (!user) return errorResponse(new Error("User not found"));
@@ -20,6 +26,7 @@ export async function POST() {
         email: user.email,
         name: user.name,
         avatarUrl: user.avatarUrl,
+        plan: user.plan,
       },
       process.env.NEXTAUTH_SECRET!,
       { expiresIn: "24h" },

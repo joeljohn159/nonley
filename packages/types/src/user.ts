@@ -13,7 +13,6 @@ export interface User {
   privacyDefault: PrivacyLevel;
   focusMode: boolean;
   isAdmin: boolean;
-  isBot: boolean;
   stripeCustomerId?: string;
   stripeSubscriptionId?: string;
 }

@@ -9,6 +9,7 @@ import type {
   Reaction,
   RoomPresence,
   PresenceUser,
+  ReactionType,
 } from "@nonley/types";
 import type { PrismaClient } from "@prisma/client";
 import type Redis from "ioredis";
@@ -18,6 +19,14 @@ import { KEYS } from "../redis";
 
 type IoServer = Server<ClientToServerEvents, ServerToClientEvents>;
 type IoSocket = Socket<ClientToServerEvents, ServerToClientEvents>;
+
+const VALID_REACTIONS = new Set<string>([
+  "wave",
+  "nod",
+  "lightbulb",
+  "question",
+  "fire",
+]);
 
 export function createPresenceHandler(
   io: IoServer,
@@ -30,12 +39,20 @@ export function createPresenceHandler(
   async function onJoinRoom(payload: JoinRoomPayload): Promise<void> {
     try {
       const { roomHash } = payload;
+      if (!roomHash || typeof roomHash !== "string" || roomHash.length > 200)
+        return;
 
       await socket.join(roomHash);
+      await socket.join(`chat:${roomHash}`);
+
+      // Atomic: add user to set + increment count only if new
+      await (
+        redis as never as {
+          roomJoin: (a: string, b: string, c: string) => Promise<number>;
+        }
+      ).roomJoin(KEYS.roomUsers(roomHash), KEYS.roomCount(roomHash), userId);
 
       await Promise.all([
-        redis.incr(KEYS.roomCount(roomHash)),
-        redis.sadd(KEYS.roomUsers(roomHash), userId),
         redis.sadd(KEYS.userRooms(userId), roomHash),
         redis.set(
           KEYS.userHeartbeat(userId, roomHash),
@@ -59,6 +76,7 @@ export function createPresenceHandler(
 
   async function onLeaveRoom(payload: LeaveRoomPayload): Promise<void> {
     try {
+      if (!payload.roomHash || typeof payload.roomHash !== "string") return;
       await leaveRoom(payload.roomHash);
     } catch (err) {
       console.error(`[presence] Error leaving room:`, err);
@@ -66,6 +84,7 @@ export function createPresenceHandler(
   }
 
   async function onHeartbeat(payload: HeartbeatPayload): Promise<void> {
+    if (!payload.roomHash || typeof payload.roomHash !== "string") return;
     const { roomHash } = payload;
     await redis.set(
       KEYS.userHeartbeat(userId, roomHash),
@@ -78,6 +97,9 @@ export function createPresenceHandler(
   async function onSendReaction(
     reaction: Omit<Reaction, "timestamp">,
   ): Promise<void> {
+    if (!reaction.roomHash || typeof reaction.roomHash !== "string") return;
+    if (!VALID_REACTIONS.has(reaction.type as string)) return;
+
     const key = KEYS.rateLimitReaction(userId);
     const exists = await redis.exists(key);
     if (exists) return;
@@ -85,6 +107,7 @@ export function createPresenceHandler(
 
     const fullReaction: Reaction = {
       ...reaction,
+      type: reaction.type as ReactionType,
       fromUserId: userId,
       timestamp: Date.now(),
     };
@@ -96,10 +119,15 @@ export function createPresenceHandler(
     chatId: string;
     content: string;
   }): Promise<void> {
-    if (!payload.content || payload.content.length > CHAT.MAX_MESSAGE_LENGTH)
+    if (
+      !payload.chatId ||
+      typeof payload.chatId !== "string" ||
+      !payload.content ||
+      typeof payload.content !== "string" ||
+      payload.content.length > CHAT.MAX_MESSAGE_LENGTH
+    )
       return;
 
-    // Rate limit: 5 whisper initiations per hour
     const key = KEYS.rateLimitWhisper(userId);
     const count = await redis.incr(key);
     if (count === 1) {
@@ -107,14 +135,12 @@ export function createPresenceHandler(
     }
     if (count > RATE_LIMITS.WHISPER_INITIATIONS_PER_HOUR) return;
 
-    // Strip links from whisper messages
     const sanitizedContent = CHAT.LINK_STRIPPING
       ? stripLinks(payload.content)
       : payload.content;
 
     const messageId = crypto.randomUUID();
 
-    // Persist to database
     try {
       await prisma.microChatMessage.create({
         data: {
@@ -126,6 +152,7 @@ export function createPresenceHandler(
       });
     } catch (err) {
       console.error("[presence] Failed to persist whisper:", err);
+      return;
     }
 
     const whisperRoom = `whisper:${payload.chatId}`;
@@ -142,10 +169,15 @@ export function createPresenceHandler(
     chatId: string;
     content: string;
   }): Promise<void> {
-    if (!payload.content || payload.content.length > CHAT.MAX_MESSAGE_LENGTH)
+    if (
+      !payload.chatId ||
+      typeof payload.chatId !== "string" ||
+      !payload.content ||
+      typeof payload.content !== "string" ||
+      payload.content.length > CHAT.MAX_MESSAGE_LENGTH
+    )
       return;
 
-    // Rate limit: 30 messages per hour per room
     const key = KEYS.rateLimitRoomChat(payload.chatId);
     const count = await redis.incr(key);
     if (count === 1) {
@@ -157,44 +189,29 @@ export function createPresenceHandler(
       ? stripLinks(payload.content)
       : payload.content;
 
-    // Fetch sender info
-    const sender = await prisma.user.findUnique({
-      where: { id: userId },
-      select: { name: true, avatarUrl: true },
-    });
+    // Use cached user data from socket instead of DB query per message
+    const senderName =
+      (socket.data.userName as string | undefined) ?? "Anonymous";
+    const senderAvatar = (socket.data.userAvatar as string | undefined) ?? "";
 
     const messageId = crypto.randomUUID();
-
-    // Persist to database
-    try {
-      await prisma.microChatMessage.create({
-        data: {
-          id: messageId,
-          chatId: payload.chatId,
-          senderId: userId,
-          content: sanitizedContent,
-        },
-      });
-    } catch (err) {
-      console.error("[presence] Failed to persist room chat:", err);
-    }
 
     const chatRoom = `chat:${payload.chatId}`;
     io.to(chatRoom).emit("room_chat_message", {
       id: messageId,
       chatId: payload.chatId,
       senderId: userId,
-      senderName: sender?.name ?? "Anonymous",
-      senderAvatar: sender?.avatarUrl ?? "",
+      senderName,
+      senderAvatar,
       content: sanitizedContent,
       createdAt: new Date(),
     });
   }
 
   async function onToggleFocus(enabled: boolean): Promise<void> {
+    if (typeof enabled !== "boolean") return;
     socket.data.focusMode = enabled;
 
-    // Persist focus mode to database
     try {
       await prisma.user.update({
         where: { id: userId },
@@ -205,7 +222,6 @@ export function createPresenceHandler(
     }
 
     if (!enabled) {
-      // TODO: Track actual missed events during focus mode
       const summary = { waves: 0, newCircleMembers: [], missedReactions: 0 };
       socket.emit("focus_summary", summary);
     }
@@ -216,7 +232,6 @@ export function createPresenceHandler(
       const rooms = await redis.smembers(KEYS.userRooms(userId));
       await Promise.all(rooms.map((roomHash) => leaveRoom(roomHash)));
       await redis.del(KEYS.userRooms(userId));
-      console.log(`[presence] User disconnected: ${userId}`);
     } catch (err) {
       console.error(`[presence] Error during disconnect cleanup:`, err);
     }
@@ -225,24 +240,33 @@ export function createPresenceHandler(
   async function leaveRoom(roomHash: string): Promise<void> {
     await socket.leave(roomHash);
 
-    // Check if user was actually in the room before decrementing
-    const removed = await redis.srem(KEYS.roomUsers(roomHash), userId);
-
-    if (removed > 0) {
-      const count = await redis.decr(KEYS.roomCount(roomHash));
-      // Guard against negative counts
-      if (count < 0) {
-        await redis.set(KEYS.roomCount(roomHash), "0");
+    // Atomic: remove user from set + decrement count only if was present
+    const newCount = await (
+      redis as never as {
+        roomLeave: (
+          a: string,
+          b: string,
+          c: string,
+          d: string,
+        ) => Promise<number>;
       }
-    }
+    ).roomLeave(
+      KEYS.roomUsers(roomHash),
+      KEYS.roomCount(roomHash),
+      KEYS.roomGroupChats(roomHash),
+      userId,
+    );
 
     await Promise.all([
       redis.srem(KEYS.userRooms(userId), roomHash),
       redis.del(KEYS.userHeartbeat(userId, roomHash)),
     ]);
 
-    const presence = await buildRoomPresence(roomHash, userId, redis, prisma);
-    io.to(roomHash).emit("presence_update", presence);
+    // Only broadcast if room still has users
+    if (newCount > 0) {
+      const presence = await buildRoomPresence(roomHash, userId, redis, prisma);
+      io.to(roomHash).emit("presence_update", presence);
+    }
   }
 
   return {
@@ -272,25 +296,29 @@ async function buildRoomPresence(
 
   // Ring 1: Friends in this room
   const friendIds = await redis.smembers(KEYS.userFriends(currentUserId));
-  const ring1Ids = roomUserIds.filter(
-    (id) => friendIds.includes(id) && id !== currentUserId,
-  );
+  const friendSet = new Set(friendIds);
 
-  // Ring 2: Sample neighbors (non-friends)
-  const nonFriendIds = roomUserIds.filter(
-    (id) => !friendIds.includes(id) && id !== currentUserId,
-  );
+  const ring1Ids: string[] = [];
+  const nonFriendIds: string[] = [];
+
+  for (const id of roomUserIds) {
+    if (id === currentUserId) continue;
+    if (friendSet.has(id)) {
+      ring1Ids.push(id);
+    } else {
+      nonFriendIds.push(id);
+    }
+  }
+
+  // Ring 2: Sample of neighbors (non-friends)
   const ring2Ids = nonFriendIds.slice(0, PRESENCE.RING2_SAMPLE_SIZE);
 
-  // Fetch actual user data from database
+  // Batch fetch user data from DB
   const allUserIds = [...ring1Ids, ...ring2Ids];
   const users =
     allUserIds.length > 0
       ? await prisma.user.findMany({
-          where: {
-            id: { in: allUserIds },
-            isBot: false, // Exclude bot flag from response but include bots in presence
-          },
+          where: { id: { in: allUserIds } },
           select: {
             id: true,
             name: true,
@@ -300,34 +328,27 @@ async function buildRoomPresence(
         })
       : [];
 
-  // Also include bots (but don't expose isBot)
-  const botUsers =
-    allUserIds.length > 0
-      ? await prisma.user.findMany({
-          where: {
-            id: { in: allUserIds },
-            isBot: true,
-          },
-          select: {
-            id: true,
-            name: true,
-            avatarUrl: true,
-            privacyDefault: true,
-          },
-        })
-      : [];
+  const userMap = new Map(users.map((u) => [u.id, u]));
 
-  const allUsers = [...users, ...botUsers];
-  const userMap = new Map(allUsers.map((u) => [u.id, u]));
+  const validPrivacyLevels = new Set([
+    "ghost",
+    "anonymous",
+    "circles_only",
+    "open",
+  ]);
 
   function toPresenceUser(id: string, ring: 1 | 2 | 3): PresenceUser {
     const user = userMap.get(id);
+    const rawPrivacy = user?.privacyDefault ?? "open";
+    const privacyLevel = validPrivacyLevels.has(rawPrivacy)
+      ? (rawPrivacy as PresenceUser["privacyLevel"])
+      : "open";
+
     return {
       userId: id,
       name: user?.name ?? "Anonymous",
       avatarUrl: user?.avatarUrl ?? "",
-      privacyLevel:
-        (user?.privacyDefault as PresenceUser["privacyLevel"]) ?? "open",
+      privacyLevel,
       ring,
     };
   }
@@ -335,11 +356,13 @@ async function buildRoomPresence(
   const ring1: PresenceUser[] = ring1Ids.map((id) => toPresenceUser(id, 1));
   const ring2: PresenceUser[] = ring2Ids.map((id) => toPresenceUser(id, 2));
 
+  const othersCount = Math.max(totalCount - 1, 0);
+
   return {
     roomHash,
     totalCount,
     ring1,
     ring2,
-    ring3Count: Math.max(totalCount - ring1.length - ring2.length, 0),
+    ring3Count: Math.max(othersCount - ring1.length - ring2.length, 0),
   };
 }

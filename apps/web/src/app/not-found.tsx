@@ -2,12 +2,14 @@ import Link from "next/link";
 
 export default function NotFound() {
   return (
-    <main className="bg-nonley-bg flex min-h-screen flex-col items-center justify-center">
-      <h1 className="text-nonley-accent mb-2 text-6xl font-bold">404</h1>
-      <p className="text-nonley-text-muted mb-6">This page doesn't exist.</p>
+    <main className="flex min-h-screen flex-col items-center justify-center bg-[#fafafa]">
+      <h1 className="mb-2 text-[48px] font-medium text-neutral-300">404</h1>
+      <p className="mb-6 text-[14px] text-neutral-500">
+        This page doesn&apos;t exist.
+      </p>
       <Link
         href="/"
-        className="bg-nonley-accent hover:bg-nonley-accent-hover rounded-lg px-6 py-3 text-sm font-medium text-white transition-colors"
+        className="rounded-lg bg-neutral-900 px-5 py-2.5 text-[13px] font-medium text-white transition-colors hover:bg-neutral-800"
       >
         Go Home
       </Link>

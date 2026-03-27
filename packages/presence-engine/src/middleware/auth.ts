@@ -6,6 +6,7 @@ interface TokenPayload {
   email: string;
   name?: string;
   avatarUrl?: string;
+  plan?: string;
 }
 
 export function authenticateSocket(
@@ -25,10 +26,16 @@ export function authenticateSocket(
     }
 
     const payload = jwt.verify(token, secret) as TokenPayload;
+
+    if (!payload.userId || typeof payload.userId !== "string") {
+      return next(new Error("Invalid token: missing userId"));
+    }
+
     socket.data.userId = payload.userId;
     socket.data.email = payload.email;
-    socket.data.name = payload.name ?? null;
-    socket.data.avatarUrl = payload.avatarUrl ?? null;
+    socket.data.userName = payload.name ?? null;
+    socket.data.userAvatar = payload.avatarUrl ?? null;
+    socket.data.plan = payload.plan ?? "free";
     next();
   } catch {
     next(new Error("Invalid or expired token"));
