@@ -28,7 +28,7 @@
     "stripe": "^14.21.0",
     "tailwind-merge": "^2.2.0",
     "zod": "^3.22.0",
-    "zustand": "^4.5.0",
+    "zustand": "^5.0.12",
     "@auth/prisma-adapter": "^1.6.0"
   },
   "devDependencies": {
